@@ -1,0 +1,6 @@
+streamlit
+langchain
+groq
+crewai
+openai
+langchain_groq 
