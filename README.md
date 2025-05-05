@@ -1,44 +1,75 @@
-# AI-Powered Multi-Agent Content Studio (ReAct, CrewAI, Groq)
+# 🚀 AI-Powered Content Studio 🚀
 
-A Python project demonstrating a multi-agent, ReAct-style workflow for content generation using CrewAI, LangChain, and Groq LLMs. Agents are capable of reasoning, planning, executing, evaluating, and communicating with each other autonomously (no backend, no database, no web UI for now).
+This project implements a multi-agent system using CrewAI and Streamlit to create a versatile content generation studio. Users can generate various types of content based on a chosen topic, leveraging AI agents for planning, research, writing, editing, SEO optimization, and fact-checking.
 
-## Features
-- Multi-agent orchestration (CrewAI, LangChain)
-- ReAct (Reasoning + Action) agent pattern
-- Agents can plan, execute, evaluate, and self-correct
-- Uses Groq for fast, open-source LLM inference
-- Easily extensible for new agent roles and tools
+## ✨ Features
 
-## Tech Stack
-- **Python**
-- **CrewAI** (multi-agent framework)
-- **LangChain** (agent logic, tools, LLM integration)
-- **Groq** (LLM provider)
+*   **Multi-Agent Workflow:** Utilizes a pipeline of specialized AI agents (Planner, Researcher, Writer, Reviewer, Editor, SEO Specialist, Fact Checker) powered by Google Gemini via CrewAI.
+*   **Streamlit UI:** Provides an interactive web interface for easy use.
+*   **Trending Topics:** Suggests current trending topics in technology to inspire content creation.
+*   **Multiple Content Types:** Generate different formats:
+    *   **Blog Posts:** Comprehensive, engaging articles with SEO optimization.
+    *   **Social Media Posts:** Concise, attractive snippets suitable for platforms like Twitter and LinkedIn.
+    *   **Video/Podcast Scripts:** Formatted scripts with options for approximate length.
+*   **Multi-Language Support:** Generate content in:
+    *   English (Default)
+    *   Hindi
+    *   Odia
+*   **Customizable Script Length:** Specify the approximate desired duration for generated scripts.
+*   **Download Options:** Download the generated content as:
+    *   Markdown (.md)
+    *   HTML (.html) (for Blog Posts)
+    *   Fact-Check Report (.md) (if applicable)
+*   **Professional UI:** Centered layout with clear sections and styling.
 
-## Setup Instructions
+## 🛠️ Setup & Installation
 
-1. **Clone the repository**
-2. **Create and activate a virtual environment**
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. **Set your Groq API key:**
-   - Create a `.env` file in the project root:
-     ```
-     GROQ_API_KEY=your_groq_api_key_here
-     ```
-5. **Run the main script:**
-   ```bash
-   python main.py
-   ```
+1.  **Clone the repository:**
+    ```bash
+    git clone <your-repository-url>
+    cd AI-Powered-Content-Studio-Project
+    ```
 
-## How it Works
-- Agents (e.g., Researcher, Writer, Reviewer) are defined with roles, goals, and tools.
-- Agents use the ReAct pattern to reason, act, observe, and iterate.
-- Tasks are delegated, executed, and evaluated by agents without human intervention.
-- Results are printed to the console.
+2.  **Create a virtual environment:**
+    ```bash
+    python -m venv venv
+    # On Windows
+    .\venv\Scripts\activate
+    # On macOS/Linux
+    source venv/bin/activate
+    ```
 
----
+3.  **Install dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-This project is a prototype. Backend, database, and web UI will be added in future versions. 
+4.  **Create a `.env` file** in the project root directory (`e:\Resume Projects\AI-Powered Content Studio Project`) and add your API keys:
+    ```env
+    GOOGLE_API_KEY=your_google_api_key_here
+    GEMINI_API_KEY=your_gemini_api_key_here
+    SERPER_API_KEY=your_serper_api_key_here
+    ```
+
+## ▶️ Usage
+
+1.  Ensure your virtual environment is activated.
+2.  Run the Streamlit application:
+    ```bash
+    streamlit run "e:\Resume Projects\AI-Powered Content Studio Project\streamlit_app.py"
+    ```
+3.  Open the provided URL in your web browser.
+4.  Select a trending topic or enter your own.
+5.  Choose the desired content type and output language.
+6.  If generating a script, specify the approximate length.
+7.  Click "Generate Content" and wait for the AI agents to complete the task.
+8.  Preview the generated content and use the download buttons.
+
+## 📂 File Structure (Simplified)
+
+*   `streamlit_app.py`: The main Streamlit user interface application.
+*   `main.py`: Contains the core pipeline logic (`run_pipeline`), agent setup (`build_agents`), prompt generation (`get_prompt`), and utility functions.
+*   `agents/`: Directory containing individual agent class definitions (e.g., `writer_agent.py`).
+*   `.env`: Stores API keys (you need to create this).
+*   `requirements.txt`: Lists project dependencies.
+*   `README.md`: This file.
