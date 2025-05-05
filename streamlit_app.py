@@ -77,14 +77,7 @@ if run_button:
     if not user_query:
         st.warning("Please enter a topic description above.")
     else:
-        # Placeholder for progress logs
-        log_placeholder = st.empty()
-        log_messages = []
-
-        # Define the callback function for logging
-        def streamlit_callback(message):
-            log_messages.append(str(message).strip())
-            log_placeholder.text_area("Pipeline Progress:", "\n".join(log_messages), height=300) # Removed key="log_area"
+        # Removed progress log display elements
 
         with st.spinner("🤖 The AI agents are working... This may take several minutes..."):
             try:
@@ -92,10 +85,9 @@ if run_button:
                 blog_md_path = os.path.join(project_root, "blog.md")
                 blog_html_path = os.path.join(project_root, "blog.html")
                 fact_check_path = os.path.join(project_root, "fact_check_report.md")
-                streamlit_callback("Starting pipeline execution...") # Initial message
                 # Run the pipeline
-                # Pass the callback function to the pipeline
-                blog_post_content, fact_check_report = run_pipeline(user_query, callback=streamlit_callback)
+                # Run without the UI callback
+                blog_post_content, fact_check_report = run_pipeline(user_query, callback=None)
 
                 if blog_post_content:
                     st.success("✅ Content generation complete!")
