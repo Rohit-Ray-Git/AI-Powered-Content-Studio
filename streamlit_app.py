@@ -63,7 +63,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Input Section ---
-st.header("Configure Your Content")
+st.header("1. Configure Your Content")
 st.divider()
 
 # Use columns to center the main input elements
@@ -137,6 +137,17 @@ with main_col:
         label_visibility="collapsed" # Hide the default selectbox label
     )
 
+    # --- Tone Selection ---
+    st.markdown("**Select Tone/Style:**")
+    tone_options = ["Informational", "Conversational", "Formal", "Humorous", "Technical"]
+    if 'selected_tone' not in st.session_state:
+        st.session_state.selected_tone = tone_options[0] # Default to Informational
+    st.session_state.selected_tone = st.selectbox(
+        "Select the desired tone/style:", # Label hidden by markdown above
+        options=tone_options,
+        key='tone_select', # Use key for session state
+        label_visibility="collapsed" # Hide the default selectbox label
+    )
     # --- Conditional Input for Script Length ---
     if st.session_state.content_type == "Video/Podcast Script":
         # Initialize if not present
@@ -179,9 +190,10 @@ if run_button:
                 if selected_content_type == "Video/Podcast Script":
                     script_length = st.session_state.get('script_length_minutes', 5) # Use .get for safety
                 selected_language = st.session_state.selected_language # Get selected language
+                selected_tone = st.session_state.selected_tone # Get selected tone
 
                 blog_post_content, fact_check_report = run_pipeline(
-                    query_to_run, content_type=selected_content_type, script_length=script_length, language=selected_language, callback=None) # Pass language
+                    query_to_run, content_type=selected_content_type, script_length=script_length, language=selected_language, tone=selected_tone, callback=None) # Pass tone
 
                 # Store results in session state
                 st.session_state.blog_post_content = blog_post_content
@@ -201,7 +213,7 @@ if run_button:
 
 # --- Display Area (Remains full width) ---
 st.markdown("---")
-st.header("Generated Content")
+st.header("2. Generated Content")
 st.divider()
 
 # Display content if it exists in session state
@@ -278,3 +290,4 @@ elif run_button and not st.session_state.get('user_query_input', ''):
 elif not run_button and not st.session_state.get('blog_post_content'):
     # Show initial message only if not run and no content exists
     st.info("Enter a topic or select a trending one, then click 'Generate Content' to start.")
+

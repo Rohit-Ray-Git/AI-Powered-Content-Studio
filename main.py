@@ -96,7 +96,7 @@ def build_agents():
     }
 
 # Role-specific prompt templates (explicitly instruct to use the search tool and provide a final answer)
-def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", script_length=None, language="English", subtopic=None): # Added language
+def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", script_length=None, language="English", tone="Informational", subtopic=None): # Added tone
     if agent_name == 'Researcher' and subtopic:
         return f"Research the following subtopic thoroughly for the main topic: '{user_query}'. Subtopic: {subtopic}. Use the web search tool to gather key facts, statistics, examples, and recent developments related to this subtopic. Provide a detailed summary paragraph (at least 10-15 sentences) covering the most important findings. Set the input parameter as : search_query."
     base_prompts = {
@@ -107,7 +107,7 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
             "For each section corresponding to a research subtopic, expand significantly on the provided research findings. Ensure each section has detailed context, multiple relevant examples, insightful analysis, and smooth transitions. Do not just list the research; elaborate on it thoroughly. "
             "**Focus on making the content highly engaging:** Use storytelling techniques, vivid descriptions, relatable analogies, and rhetorical questions to draw the reader in and maintain their interest throughout. Ensure a strong narrative flow. "
             "Where appropriate, identify key terms, statistics, or concepts and use the search tool to find relevant, authoritative URLs. Embed these as Markdown links (e.g., `link text`) directly within the text to support your points and provide further reading. Aim for 3-5 relevant links throughout the article. "
-            "Aim for a substantial article, ideally over 2000 words. Ensure the content is rich and provides real value to the reader. "
+            f"Aim for a substantial article, ideally over 2000 words. Ensure the content is rich and provides real value to the reader. Adapt the writing style to be **{tone}**. "
             "Write in a conversational, informative tone suitable for Medium or professional blogs. "
             "Begin with a compelling introduction and end with a strong conclusion. "
             "Avoid bullet points except for short lists. Use paragraphs and storytelling. "
@@ -118,7 +118,7 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
         ),
         'Reviewer': f"Review the following blog post for factual accuracy, clarity, and coherence. Use the web search tool only if you need to verify a specific claim. After you have verified one or two claims, immediately write a review summary and end your response. Your output should be a single, concise review summary starting with 'Final Review:'. Do not output any more actions or thoughts after your summary. Here is the blog post: {prev_output}",
         'Editor': (
-            "Edit the following blog post for grammar, style, and readability. **Crucially, enhance engagement:** Inject more vivid language, strengthen storytelling elements, improve flow, and ensure the tone is consistently captivating and professional. "
+            f"Edit the following blog post for grammar, style, and readability. **Crucially, enhance engagement and ensure the tone is consistently {tone}:** Inject more vivid language, strengthen storytelling elements, improve flow, and ensure the tone is consistently captivating and professional while matching the desired **{tone}** style. "
             "Review each section carefully. Elaborate on each section, add transitions, and ensure the post reads like a story, not just a list of facts. Pay close attention to the depth of each individual section based on the original research topics. "
             "Review existing links for relevance and quality. If appropriate, add 1-2 more high-quality, relevant Markdown links (`link text`) using the search tool to find authoritative sources for key claims or concepts that lack citation. Ensure links are integrated naturally. "
             "Significantly expand sections that seem brief or underdeveloped by adding more examples, context, narrative depth, or further explanation. Ensure the final post is comprehensive and feels complete (aiming for 2000+ words if the input is shorter). "
@@ -131,6 +131,7 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
 
     # --- Language Instruction ---
     language_instruction = f"\n\n**IMPORTANT: Generate the entire output text in {language}.**" if language != "English" else ""
+    tone_instruction = f" Ensure the overall tone is **{tone}**." # Separate tone instruction
 
     # --- Modify prompts based on content_type ---
     if agent_name == 'Writer':
@@ -146,7 +147,7 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
                 "- **Include relevant hashtags:** Use a mix of broad and specific hashtags.\n"
                 "Format the output clearly, perhaps numbering each post or using separators like '---'.\n"
                 "Provide the final output as the collection of social media posts in Markdown format."
-            )
+            ) + tone_instruction # Add tone instruction
         elif content_type == "Video/Podcast Script":
             prompt = (
                 f"Based on the following research summary about '{user_query}':\n{prev_output}\n\n"
@@ -154,7 +155,7 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
                 "Structure the script clearly:\n"
                 "- Use standard script formatting (e.g., SCENE HEADING, NARRATOR/CHARACTER name in caps, Dialogue below name).\n"
                 "- Break down content into logical scenes or sections (e.g., INT. STUDIO - DAY, SECTION 1: THE BASICS).\n"
-                "- **Write dialogue/narration that is highly engaging:** Use storytelling, vivid language, rhetorical questions, and a conversational tone suitable for spoken delivery. Build interest and maintain listener attention.\n"
+                f"- **Write dialogue/narration that is highly engaging and matches a {tone} tone:** Use storytelling, vivid language, rhetorical questions, and a conversational style suitable for spoken delivery. Build interest and maintain listener attention.\n"
                 "- Include clear action lines or descriptions for visuals where appropriate (e.g., [VISUAL: Graph showing market growth], [SOUND CUE: Upbeat intro music]).\n"
                 "- Add speaker cues for pacing and emphasis (e.g., [PAUSE], [EMPHASIZE THIS POINT]).\n"
                 "- **Focus on pacing:** Vary sentence structure and use pauses effectively to keep the listener engaged.\n"
@@ -165,7 +166,7 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
         # Default to Blog Post prompt if content_type is "Blog Post" or unrecognized
         else:
             prompt = base_prompts['Writer']
-        return prompt + language_instruction # Add language instruction to writer prompt
+        return prompt + language_instruction # Add language instruction (tone is already embedded in base prompt for blog)
 
     # --- Modify Reviewer prompt based on content_type ---
     if agent_name == 'Reviewer':
@@ -179,7 +180,7 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
         elif content_type == "Video/Podcast Script":
              prompt = ( # Assign to prompt
                 f"Review the following script for clarity, conversational flow, logical structure, and accuracy based on the original topic '{user_query}'. "
-                f"Check if speaker/visual cues are used appropriately and consistently. Check if the pacing feels right for the target length. Provide constructive feedback on script elements, focusing on the {language} language if specified. "
+                f"Check if speaker/visual cues are used appropriately and consistently. Check if the pacing feels right for the target length. Ensure the tone aligns with the intended **{tone}** style. Provide constructive feedback on script elements, focusing on the {language} language if specified. "
                 f"Do NOT start your response with 'Final Review:'. Here is the script:\n{prev_output}"
              )
         # Default to Blog Post review prompt
@@ -194,14 +195,15 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
         prompt = ""
         if content_type == "Video/Podcast Script":
             prompt = (
-                f"Edit the following script for grammar, style, clarity, and conciseness, focusing on spoken language. **Significantly enhance engagement:** Inject more vivid descriptions, strengthen narrative elements, improve pacing, and ensure the tone is consistently captivating. "
+                f"Edit the following script for grammar, style, clarity, and conciseness, focusing on spoken language. **Significantly enhance engagement and ensure the tone is {tone}:** Inject more vivid descriptions, strengthen narrative elements, improve pacing, and ensure the tone is consistently captivating while matching the desired **{tone}** style. "
                 f"Ensure consistent formatting for scene headings, character names, dialogue, and cues. Smooth out awkward phrasing. Check for flow and pacing. "
                 f"Provide the final output as the polished script in Markdown format: {prev_output}"
             )
         # Default to Blog Post editor prompt
         else: # Added else block
              prompt = base_prompts['Editor']
-        return prompt + language_instruction # Add language instruction to editor prompt
+        # Tone instruction is already embedded in the base prompt for Blog Post Editor
+        return prompt + language_instruction # Add language instruction
 
     # --- Add language instruction for other relevant agents ---
     # SEO might need language context, Fact Checker might too. For now, focus on Writer/Editor.
@@ -368,7 +370,7 @@ def clean_code_blocks(text):
     return cleaned.strip()
 
 # Define the workflow pipeline using CrewAI's Task and Crew
-def run_pipeline(user_query, content_type="Blog Post", script_length=None, language="English", callback=None): # Added language
+def run_pipeline(user_query, content_type="Blog Post", script_length=None, language="English", tone="Informational", callback=None): # Added tone
     if callback:
         callback(f"Starting pipeline for query: {user_query}")
     agents = build_agents()
@@ -394,7 +396,7 @@ def run_pipeline(user_query, content_type="Blog Post", script_length=None, langu
 
     for agent_key in agent_sequence:
         agent = agents[agent_key]
-        prompt = get_prompt(agent.name, input_data, user_query, content_type=content_type, script_length=script_length, language=language) # Pass language
+        prompt = get_prompt(agent.name, input_data, user_query, content_type=content_type, script_length=script_length, language=language, tone=tone) # Pass tone
         if callback: # Check if callback exists before calling
             callback(f"[DEBUG] Prompt for {agent.name} (start): {prompt[:200]}...") # Log start of prompt
         task = Task(
@@ -438,7 +440,7 @@ if __name__ == "__main__":
     user_query = "Write a detailed report on the impact of AI in human life."
     print(f"\nRunning multi-agent pipeline via main script for query: {user_query}\n")
     # Pass print function as a simple callback when running directly
-    final_content, fact_check_report = run_pipeline(user_query, content_type="Blog Post", language="English", callback=print) # Specify language
+    final_content, fact_check_report = run_pipeline(user_query, content_type="Blog Post", language="English", tone="Informational", callback=print) # Specify tone
     print("\n=== FINAL OUTPUT ===\n")
     print("Type of final_content:", type(final_content))
     print("repr(final_content) (first 200 chars):", repr(str(final_content)[:200]))
@@ -467,3 +469,4 @@ if __name__ == "__main__":
         with open("fact_check_report.md", "w", encoding="utf-8") as f:
             f.write(fact_check_report)
         print("\nFact-check report saved to fact_check_report.md.\n")
+
