@@ -106,7 +106,7 @@ def get_prompt(agent_name, prev_output, user_query, subtopic=None):
             f"Write a comprehensive, engaging, and descriptive blog post based on this research and outline: {prev_output}. "
             "For each section corresponding to a research subtopic, expand significantly on the provided research findings. Ensure each section has detailed context, multiple relevant examples, insightful analysis, and smooth transitions. Do not just list the research; elaborate on it thoroughly. "
             "Where appropriate, identify key terms, statistics, or concepts and use the search tool to find relevant, authoritative URLs. Embed these as Markdown links (e.g., `link text`) directly within the text to support your points and provide further reading. Aim for 3-5 relevant links throughout the article. "
-            "Aim for a substantial article, ideally over 1000 words. Ensure the content is rich and provides real value to the reader. "
+            "Aim for a substantial article, ideally over 1500 words. Ensure the content is rich and provides real value to the reader. "
             "Write in a conversational, informative tone suitable for Medium or professional blogs. "
             "Begin with a compelling introduction and end with a strong conclusion. "
             "Avoid bullet points except for short lists. Use paragraphs and storytelling. "
@@ -121,7 +121,7 @@ def get_prompt(agent_name, prev_output, user_query, subtopic=None):
             "Edit the following blog post for grammar, style, and readability. Make it more engaging and professional. "
             "Review each section carefully. Elaborate on each section, add transitions, and ensure the post reads like a story, not just a list of facts. Pay close attention to the depth of each individual section based on the original research topics. "
             "Review existing links for relevance and quality. If appropriate, add 1-2 more high-quality, relevant Markdown links (`link text`) using the search tool to find authoritative sources for key claims or concepts that lack citation. Ensure links are integrated naturally. "
-            "Significantly expand sections that seem brief or underdeveloped by adding more examples, context, narrative depth, or further explanation. Ensure the final post is comprehensive and feels complete (aiming for 1000+ words if the input is shorter). "
+            "Significantly expand sections that seem brief or underdeveloped by adding more examples, context, narrative depth, or further explanation. Ensure the final post is comprehensive and feels complete (aiming for 1500+ words if the input is shorter). "
             f"Use paragraphs and storytelling effectively. Provide a final answer as the polished and expanded blog post in Markdown format: {prev_output}"
         ),
         'SEO Specialist': f"Take the following blog post (in Markdown format) and optimize it for SEO. Research relevant keywords using the search tool if necessary. Integrate keywords naturally, improve readability for search engines, and craft an optimized meta description (include it at the very beginning, like: META_DESCRIPTION: [Your description here]). Preserve existing Markdown links. Do NOT explain your process or plan. Your final output must be ONLY the complete, SEO-optimized blog post text in Markdown format, starting with the meta description line. Here is the blog post: {prev_output}",
@@ -182,7 +182,7 @@ def run_research_subtasks(user_query, subtopics, researcher_agent, callback=None
         task = Task(
             description=prompt,
             agent=researcher_agent.crew_agent,
-            expected_output=f"A detailed summary paragraph (5-7 sentences minimum) of research findings for the subtopic: {subtopic}." # Corrected expected output length
+            expected_output=f"A detailed summary paragraph (10 to 15 sentences minimum) of research findings for the subtopic: {subtopic}." # Corrected expected output length
         )
         crew = Crew(agents=[researcher_agent.crew_agent], tasks=[task])
         max_retries = 3
