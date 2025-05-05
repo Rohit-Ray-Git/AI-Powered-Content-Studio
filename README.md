@@ -26,7 +26,7 @@ This project implements a multi-agent system using CrewAI and Streamlit to creat
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repository-url>
+    git clone [<your-repository-url>](https://github.com/Rohit-Ray-Git/AI-Powered-Content-Studio.git)
     cd AI-Powered-Content-Studio-Project
     ```
 
