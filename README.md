@@ -44,7 +44,7 @@ This project implements a multi-agent system using CrewAI and Streamlit to creat
     pip install -r requirements.txt
     ```
 
-4.  **Create a `.env` file** in the project root directory (`e:\Resume Projects\AI-Powered Content Studio Project`) and add your API keys:
+4.  **Create a `.env` file** in the project root directory and add your API keys:
     ```env
     GOOGLE_API_KEY=your_google_api_key_here
     GEMINI_API_KEY=your_gemini_api_key_here
@@ -56,7 +56,7 @@ This project implements a multi-agent system using CrewAI and Streamlit to creat
 1.  Ensure your virtual environment is activated.
 2.  Run the Streamlit application:
     ```bash
-    streamlit run "e:\Resume Projects\AI-Powered Content Studio Project\streamlit_app.py"
+    streamlit run "AI-Powered Content Studio Project\streamlit_app.py"
     ```
 3.  Open the provided URL in your web browser.
 4.  Select a trending topic or enter your own.
