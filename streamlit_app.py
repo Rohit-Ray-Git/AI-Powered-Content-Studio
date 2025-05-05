@@ -77,22 +77,31 @@ if run_button:
     if not user_query:
         st.warning("Please enter a topic description above.")
     else:
+        # Placeholder for progress logs
+        log_placeholder = st.empty()
+        log_messages = []
+
+        # Define the callback function for logging
+        def streamlit_callback(message):
+            log_messages.append(str(message).strip())
+            log_placeholder.text_area("Pipeline Progress:", "\n".join(log_messages), height=300) # Removed key="log_area"
+
         with st.spinner("🤖 The AI agents are working... This may take several minutes..."):
             try:
                 # Define output file paths relative to the project root
                 blog_md_path = os.path.join(project_root, "blog.md")
                 blog_html_path = os.path.join(project_root, "blog.html")
                 fact_check_path = os.path.join(project_root, "fact_check_report.md")
-
+                streamlit_callback("Starting pipeline execution...") # Initial message
                 # Run the pipeline
-                blog_post_content, fact_check_report = run_pipeline(user_query)
+                # Pass the callback function to the pipeline
+                blog_post_content, fact_check_report = run_pipeline(user_query, callback=streamlit_callback)
 
                 if blog_post_content:
                     st.success("✅ Content generation complete!")
 
                     # Display the blog post preview (rendered from Markdown)
-                    st.subheader("📄 Blog Post Preview (Rendered HTML)")
-                    # Use st.markdown as the content is Markdown
+                    st.subheader("📄 Blog Post Preview (Rendered from Markdown)")
                     # clean_code_blocks might be useful if the AI includes ``` sometimes
                     # --- Revert to using components.html as the content is HTML ---
                     html_content_str = str(blog_post_content)
@@ -110,10 +119,8 @@ if run_button:
   li { margin-bottom: 0.5em; }
 </style>
 """
-                    # Insert styles just before the closing </head> tag if possible
-                    styled_html_content = html_content_str.replace("</head>", f"{basic_styles}</head>", 1) if "</head>" in html_content_str else basic_styles + html_content_str
-
-                    components.html(styled_html_content, height=600, scrolling=True)
+                    # Use st.markdown to render the Markdown content correctly
+                    st.markdown(clean_code_blocks(str(blog_post_content)), unsafe_allow_html=True) # Allow HTML in Markdown if needed for links
 
                     # Provide download buttons
                     st.subheader("💾 Download Files")

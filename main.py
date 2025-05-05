@@ -146,12 +146,13 @@ def extract_subtopics_from_outline(outline):
             subtopics.append(line.strip('. '))
     # Fallback: if not enough subtopics, use lines that look like section headers
     if len(subtopics) < 3:
-        subtopics = [line for line in lines if line and len(line) > 3]
+        # Use all non-empty lines if outline parsing fails
+        subtopics = [line for line in lines if line and len(line) > 3] or [user_query] # Ensure at least the original query if all else fails
     return subtopics
 
-def plan_task(user_query, planner_agent):
+def plan_task(user_query, planner_agent, callback=None):
     # Use the planner agent to break down the user_query into subtasks
-    prompt = get_prompt('Planner', '', user_query)
+    prompt = get_prompt('Planner', '', user_query) # prev_output is empty for planner
     task = Task(
         description=prompt,
         agent=planner_agent.crew_agent,
@@ -159,22 +160,29 @@ def plan_task(user_query, planner_agent):
     )
     crew = Crew(agents=[planner_agent.crew_agent], tasks=[task])
     result = crew.kickoff()
+    if callback:
+        callback(f"Planner Result:\n{result}")
     if isinstance(result, str):
         subtopics = extract_subtopics_from_outline(result)
         if len(subtopics) >= 3:
+            if callback:
+                callback(f"Extracted Subtopics: {', '.join(subtopics)}")
             return subtopics
     # If planner output is not usable, just use the whole query as one subtopic
+    if callback:
+        callback(f"Could not extract distinct subtopics. Using full query: '{user_query}'")
     return [user_query]
 
-def run_research_subtasks(user_query, subtopics, researcher_agent):
+def run_research_subtasks(user_query, subtopics, researcher_agent, callback=None):
     results = {}
     for subtopic in subtopics:
-        print(f"\n--- Researching: {subtopic} ---")
+        if callback:
+            callback(f"\n--- Researching: {subtopic} ---")
         prompt = get_prompt('Researcher', '', user_query, subtopic=subtopic)
         task = Task(
             description=prompt,
             agent=researcher_agent.crew_agent,
-            expected_output=f"A detailed summary paragraph (7-10 sentences minimum) of research findings for the subtopic: {subtopic}."
+            expected_output=f"A detailed summary paragraph (5-7 sentences minimum) of research findings for the subtopic: {subtopic}." # Corrected expected output length
         )
         crew = Crew(agents=[researcher_agent.crew_agent], tasks=[task])
         max_retries = 3
@@ -182,7 +190,8 @@ def run_research_subtasks(user_query, subtopics, researcher_agent):
             try:
                 result = crew.kickoff()
                 results[subtopic] = result
-                print(f"\n{subtopic} output:\n{result}\n")
+                if callback:
+                    callback(f"\nResearch Result for '{subtopic}':\n{result}\n")
                 break
             except Exception as e:
                 error_msg = str(e)
@@ -192,14 +201,17 @@ def run_research_subtasks(user_query, subtopics, researcher_agent):
                     match = re.search(r'"retryDelay":\s*"(\\d+)s"', error_msg)
                     if match:
                         retry_delay = int(match.group(1))
-                    print(f"Rate limit hit. Waiting {retry_delay} seconds before retrying (attempt {attempt+1}/{max_retries})...")
+                    message = f"Rate limit hit. Waiting {retry_delay} seconds before retrying (attempt {attempt+1}/{max_retries})..."
+                    if callback: callback(message)
+                    else: print(message)
                     time.sleep(retry_delay)
                 else:
-                    print(f"Error during research for subtopic '{subtopic}': {e}")
+                    message = f"Error during research for subtopic '{subtopic}': {e}"
+                    if callback: callback(message)
+                    else: print(message)
                     results[subtopic] = f"Error: {e}"
                     break
         else:
-            print(f"Failed to complete research for subtopic '{subtopic}' after {max_retries} attempts.")
             results[subtopic] = "Error: Rate limit exceeded after retries."
     return results
 
@@ -215,10 +227,12 @@ def clean_code_blocks(text):
     return cleaned.strip()
 
 # Define the workflow pipeline using CrewAI's Task and Crew
-def run_pipeline(user_query):
-    print(f"[DEBUG] User query at pipeline start: {user_query}")
+def run_pipeline(user_query, callback=None):
+    if callback:
+        callback(f"Starting pipeline for query: {user_query}")
     agents = build_agents()
-    subtopics = plan_task(user_query, agents['planner'])
+    if callback: callback("Running Planner...")
+    subtopics = plan_task(user_query, agents['planner'], callback=callback)
     research_results = run_research_subtasks(user_query, subtopics, agents['researcher'])
     research_summary = aggregate_research_results(research_results)
     input_data = research_summary
@@ -227,9 +241,11 @@ def run_pipeline(user_query):
 
     for agent_key in ['writer', 'reviewer', 'editor', 'seo', 'fact_checker']:
         agent = agents[agent_key]
-        print(f"\n--- {agent.name} is processing... ---")
+        if callback:
+            callback(f"\n--- Running {agent.name}... ---")
         prompt = get_prompt(agent.name, input_data, user_query)
-        print(f"[DEBUG] Prompt for {agent.name}: {prompt[:200]}")
+        if callback:
+            callback(f"[DEBUG] Prompt for {agent.name} (start): {prompt[:200]}...") # Log start of prompt
         task = Task(
             description=prompt,
             agent=agent.crew_agent,
@@ -237,10 +253,12 @@ def run_pipeline(user_query):
         )
         crew = Crew(agents=[agent.crew_agent], tasks=[task])
         result = crew.kickoff()
-        print(f"\n[DEBUG] {agent.name} output (first 500 chars):\n{repr(str(result)[:500])}\n")
+        if callback:
+            callback(f"[DEBUG] Output from {agent.name} (start):\n{repr(str(result)[:300])}...\n") # Log start of result
         # Check for placeholder output
         if isinstance(result, str) and ("I am ready to edit the blog post once it is provided." in result or len(result.strip()) == 0):
-            print(f"\n[ERROR] {agent.name} did not receive valid input. Pipeline stopped.\n")
+            message = f"\n[ERROR] {agent.name} did not receive valid input or gave placeholder output. Pipeline stopped.\n"
+            if callback: callback(message)
             return None, None
         if agent_key == 'seo':
             blog_post = result  # Save the SEO-optimized blog post
@@ -250,8 +268,11 @@ def run_pipeline(user_query):
         if agent_key != 'fact_checker':
             input_data = result
         if isinstance(result, str) and "Agent stopped due to iteration limit or time limit" in result:
-            print(f"\nERROR: {agent.name} failed to complete its task. Pipeline stopped.")
+            message = f"\n[ERROR] {agent.name} failed to complete its task (limit reached). Pipeline stopped."
+            if callback: callback(message)
             return None, None
+    if callback:
+        callback("\n--- Pipeline finished ---")
     return blog_post, fact_check_report
 
 def extract_body_content(html):
@@ -262,10 +283,10 @@ def extract_body_content(html):
 
 if __name__ == "__main__":
     user_query = "Write a detailed report on the impact of AI in human life."
-    print(f"\nRunning multi-agent pipeline for user query: {user_query}\n")
-    blog_post, fact_check_report = run_pipeline(user_query)
+    print(f"\nRunning multi-agent pipeline via main script for query: {user_query}\n")
+    # Pass print function as a simple callback when running directly
+    blog_post, fact_check_report = run_pipeline(user_query, callback=print)
     print("\n=== FINAL OUTPUT ===\n")
-    print(blog_post)
     print("Type of blog_post:", type(blog_post))
     print("repr(blog_post) (first 200 chars):", repr(str(blog_post)[:200]))
     # Clean code block markers before saving
