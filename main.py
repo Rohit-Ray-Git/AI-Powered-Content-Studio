@@ -98,32 +98,33 @@ def build_agents():
 # Role-specific prompt templates (explicitly instruct to use the search tool and provide a final answer)
 def get_prompt(agent_name, prev_output, user_query, subtopic=None):
     if agent_name == 'Researcher' and subtopic:
-        return f"Research the following subtopic for: '{user_query}'. Subtopic: {subtopic}. Use the web search tool if needed. Summarize your findings in 2-3 concise bullet points. Set the input parameter as : search_query."
+        return f"Research the following subtopic thoroughly for the main topic: '{user_query}'. Subtopic: {subtopic}. Use the web search tool to gather key facts, statistics, examples, and recent developments related to this subtopic. Provide a detailed summary paragraph (at least 5-7 sentences) covering the most important findings. Set the input parameter as : search_query."
     prompts = {
-        'Planner': f"Plan the structure and main points for a blog post about: '{user_query}'. Use the web search tool if needed. When done, provide a final answer as a detailed outline. Set the input parameter as : search_query.",
-        'Researcher': f"Research the latest advancements, statistics, and trends for: '{user_query}'. Use the web search tool. Use the following outline as a guide: {prev_output}. When done, provide a final answer as a research summary. Set the input parameter as : search_query.",
+        'Planner': f"Plan the structure and main points for a blog post about: '{user_query}'. Use the web search tool if needed. When done, provide a final answer as a detailed outline.",
+        'Researcher': f"Research the latest advancements, statistics, and trends for: '{user_query}'. Use the web search tool. Use the following outline as a guide: {prev_output}. When done, provide a final answer as a research summary.",
         'Writer': (
-            "Write a comprehensive, engaging, and descriptive blog post based on this research and outline: {prev_output}. "
-            "For each section, expand on the points with context, examples, and smooth transitions. "
+            f"Write a comprehensive, engaging, and descriptive blog post based on this research and outline: {prev_output}. "
+            "For each section corresponding to a research subtopic, expand significantly on the provided research findings. Ensure each section has detailed context, multiple relevant examples, insightful analysis, and smooth transitions. Do not just list the research; elaborate on it thoroughly. "
+            "Aim for a substantial article, ideally over 1000 words. Ensure the content is rich and provides real value to the reader. "
             "Write in a conversational, informative tone suitable for Medium or professional blogs. "
             "Begin with a compelling introduction and end with a strong conclusion. "
             "Avoid bullet points except for short lists. Use paragraphs and storytelling. "
+            "Make it captivating and thorough. "
             "Here is an example of the desired style:\n\n"
             "Example:\n"
             "India's renewable energy journey is nothing short of remarkable. In 2024, the country achieved record-breaking growth, with solar panels gleaming atop rooftops from Mumbai to Chennai. This surge isn't just about numbers—it's about a nation embracing a cleaner, brighter future.\n\n"
-            "Set the input parameter as : search_query."
         ),
-        'Reviewer': f"Review the following blog post for factual accuracy, clarity, and coherence. Use the web search tool only if you need to verify a specific claim. After you have verified one or two claims, immediately write a review summary and end your response. Your output should be a single, concise review summary starting with 'Final Review:'. Do not output any more actions or thoughts after your summary. Here is the blog post: {prev_output} Set the input parameter as : search_query.",
+        'Reviewer': f"Review the following blog post for factual accuracy, clarity, and coherence. Use the web search tool only if you need to verify a specific claim. After you have verified one or two claims, immediately write a review summary and end your response. Your output should be a single, concise review summary starting with 'Final Review:'. Do not output any more actions or thoughts after your summary. Here is the blog post: {prev_output}",
         'Editor': (
             "Edit the following blog post for grammar, style, and readability. Make it more engaging and professional. "
-            "Elaborate on each section, add transitions, and ensure the post reads like a story, not a list. "
-            "If any section is too brief, expand it with examples, context, or narrative. "
-            "Use paragraphs and storytelling. Provide a final answer as the edited blog post: {prev_output} Set the input parameter as : search_query."
+            "Review each section carefully. Elaborate on each section, add transitions, and ensure the post reads like a story, not just a list of facts. Pay close attention to the depth of each individual section based on the original research topics. "
+            "Significantly expand sections that seem brief or underdeveloped by adding more examples, context, narrative depth, or further explanation. Ensure the final post is comprehensive and feels complete (aiming for 1000+ words if the input is shorter). "
+            f"Use paragraphs and storytelling effectively. Provide a final answer as the polished and expanded blog post: {prev_output}"
         ),
-        'SEO Specialist': f"Optimize the following blog post for SEO. Use the web search tool if needed. Suggest keywords, meta description, and improvements. Provide a final answer as an SEO-optimized version: {prev_output} Set the input parameter as : search_query.",
-        'Fact Checker': f"Fact-check the following blog post. Use the web search tool if needed. Highlight any inaccuracies or unsupported claims. Provide a final answer as a fact-check report: {prev_output} Set the input parameter as : search_query."
+        'SEO Specialist': f"Optimize the following blog post for SEO. Use the web search tool if needed. Suggest keywords, meta description, and improvements. Provide a final answer as an SEO-optimized version: {prev_output}",
+        'Fact Checker': f"Fact-check the following blog post. Use the web search tool if needed. Highlight any inaccuracies or unsupported claims. Provide a final answer as a fact-check report: {prev_output}"
     }
-    return prompts.get(agent_name, prev_output)
+    return prompts.get(agent_name, f"Process the following input: {prev_output}") # Provide a generic fallback
 
 def extract_subtopics_from_outline(outline):
     # Try to extract subtopics from the planner's outline (numbered, bulleted, or indented lines)
@@ -151,7 +152,7 @@ def plan_task(user_query, planner_agent):
     task = Task(
         description=prompt,
         agent=planner_agent.crew_agent,
-        expected_output="Planner should produce a list of subtasks or sections."
+        expected_output="A detailed outline or list of subtopics for the blog post."
     )
     crew = Crew(agents=[planner_agent.crew_agent], tasks=[task])
     result = crew.kickoff()
@@ -170,7 +171,7 @@ def run_research_subtasks(user_query, subtopics, researcher_agent):
         task = Task(
             description=prompt,
             agent=researcher_agent.crew_agent,
-            expected_output=f"Researcher should produce a concise summary for subtopic: {subtopic}."
+            expected_output=f"A detailed summary paragraph (5-7 sentences minimum) of research findings for the subtopic: {subtopic}."
         )
         crew = Crew(agents=[researcher_agent.crew_agent], tasks=[task])
         max_retries = 3
@@ -229,7 +230,7 @@ def run_pipeline(user_query):
         task = Task(
             description=prompt,
             agent=agent.crew_agent,
-            expected_output=f"{agent.name} should produce a detailed and complete output for this step. Set the input parameter as : search_query."
+            expected_output=f"A detailed and complete output representing the result of the {agent.name}'s task (e.g., written blog post, review summary, edited post, SEO suggestions, fact-check report)."
         )
         crew = Crew(agents=[agent.crew_agent], tasks=[task])
         result = crew.kickoff()
@@ -257,7 +258,7 @@ def extract_body_content(html):
     return html.strip()
 
 if __name__ == "__main__":
-    user_query = "Write a detailed report on the impact of renewable energy adoption in India in 2024."
+    user_query = "Write a detailed report on the impact of AI in human life."
     print(f"\nRunning multi-agent pipeline for user query: {user_query}\n")
     blog_post, fact_check_report = run_pipeline(user_query)
     print("\n=== FINAL OUTPUT ===\n")
@@ -265,10 +266,26 @@ if __name__ == "__main__":
     print("Type of blog_post:", type(blog_post))
     print("repr(blog_post) (first 200 chars):", repr(str(blog_post)[:200]))
     # Clean code block markers before saving
-    cleaned_blog_post = clean_code_blocks(str(blog_post))
+    cleaned_blog_post_text = clean_code_blocks(str(blog_post))
+
+    # Save as Markdown
+    with open("blog.md", "w", encoding="utf-8") as f:
+        f.write(cleaned_blog_post_text)
+    print("\nBlog article saved to blog.md as Markdown.\n")
+
+    # Convert Markdown to HTML
+    html_content = markdown.markdown(cleaned_blog_post_text, extensions=['fenced_code', 'tables'])
+
+    # Create a basic HTML structure
+    full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>AI Generated Blog Post</title></head>
+<body>{html_content}</body>
+</html>"""
+
     with open("blog.html", "w", encoding="utf-8") as f:
-        f.write(cleaned_blog_post)
-    print("\nBlog article saved to blog.html as HTML (code blocks removed).\n")
+        f.write(full_html)
+    print("\nBlog article converted to HTML and saved to blog.html.\n")
     if fact_check_report and isinstance(fact_check_report, str):
         with open("fact_check_report.md", "w", encoding="utf-8") as f:
             f.write(fact_check_report)
