@@ -12,16 +12,16 @@ from .seo_agent import SEOAgent
 from .fact_checker_agent import FactCheckerAgent
 from .planner_agent import PlannerAgent
 
-from langchain.llms import Groq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from crewai import Agent as CrewAgent
-from utils import GROQ_API_KEY
+from utils import GOOGLE_API_KEY
 
 class Agent:
-    def __init__(self, name, role, description):
+    def __init__(self, name, role, description, llm):
         self.name = name
         self.role = role
         self.description = description
-        self.llm = Groq(api_key=GROQ_API_KEY)
+        self.llm = llm
         self.crew_agent = CrewAgent(name=name, role=role, goal=description, llm=self.llm)
 
     def run(self, task):
