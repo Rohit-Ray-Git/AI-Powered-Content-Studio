@@ -125,6 +125,18 @@ with main_col:
         label_visibility="collapsed" # Hide the default radio label
     )
 
+    # --- Language Selection ---
+    st.markdown("**Select Output Language:**")
+    language_options = ["English", "Hindi", "Odia"] # Added Odia
+    if 'selected_language' not in st.session_state:
+        st.session_state.selected_language = language_options[0] # Default to English
+    st.session_state.selected_language = st.selectbox(
+        "Select the output language:", # Label hidden by markdown above
+        options=language_options,
+        key='lang_select', # Use key for session state
+        label_visibility="collapsed" # Hide the default selectbox label
+    )
+
     # --- Conditional Input for Script Length ---
     if st.session_state.content_type == "Video/Podcast Script":
         # Initialize if not present
@@ -165,10 +177,11 @@ if run_button:
                 # Pass script length if relevant
                 script_length = None
                 if selected_content_type == "Video/Podcast Script":
-                    script_length = st.session_state.script_length_minutes
+                    script_length = st.session_state.get('script_length_minutes', 5) # Use .get for safety
+                selected_language = st.session_state.selected_language # Get selected language
 
                 blog_post_content, fact_check_report = run_pipeline(
-                    query_to_run, content_type=selected_content_type, script_length=script_length, callback=None) # Pass content_type and script_length
+                    query_to_run, content_type=selected_content_type, script_length=script_length, language=selected_language, callback=None) # Pass language
 
                 # Store results in session state
                 st.session_state.blog_post_content = blog_post_content
@@ -265,4 +278,3 @@ elif run_button and not st.session_state.get('user_query_input', ''):
 elif not run_button and not st.session_state.get('blog_post_content'):
     # Show initial message only if not run and no content exists
     st.info("Enter a topic or select a trending one, then click 'Generate Content' to start.")
-

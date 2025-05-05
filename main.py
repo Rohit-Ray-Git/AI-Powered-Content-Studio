@@ -21,7 +21,7 @@ GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 SERPER_API_KEY = os.getenv('SERPER_API_KEY')
 
-# Set up the LLM (Gemini 2.5 Pro Preview) using CrewAI's LLM class
+# Set up the LLM (Gemini 2.0 Flash) using CrewAI's LLM class
 llm = LLM(
     model="gemini/gemini-2.0-flash",
     api_key=GEMINI_API_KEY,
@@ -96,7 +96,7 @@ def build_agents():
     }
 
 # Role-specific prompt templates (explicitly instruct to use the search tool and provide a final answer)
-def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", script_length=None, subtopic=None): # Added content_type & script_length
+def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", script_length=None, language="English", subtopic=None): # Added language
     if agent_name == 'Researcher' and subtopic:
         return f"Research the following subtopic thoroughly for the main topic: '{user_query}'. Subtopic: {subtopic}. Use the web search tool to gather key facts, statistics, examples, and recent developments related to this subtopic. Provide a detailed summary paragraph (at least 10-15 sentences) covering the most important findings. Set the input parameter as : search_query."
     base_prompts = {
@@ -129,10 +129,14 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
         'Fact Checker': f"Fact-check the following blog post. Use the web search tool if needed. Highlight any inaccuracies or unsupported claims. Provide a final answer as a fact-check report: {prev_output}"
     }
 
+    # --- Language Instruction ---
+    language_instruction = f"\n\n**IMPORTANT: Generate the entire output text in {language}.**" if language != "English" else ""
+
     # --- Modify prompts based on content_type ---
     if agent_name == 'Writer':
+        prompt = ""
         if content_type == "Social Media Posts":
-            return (
+            prompt = (
                 f"Based on the following research summary about '{user_query}':\n{prev_output}\n\n"
                 "Generate 3-5 distinct social media posts suitable for platforms like Twitter and LinkedIn.\n"
                 "Each post should be:\n"
@@ -144,7 +148,7 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
                 "Provide the final output as the collection of social media posts in Markdown format."
             )
         elif content_type == "Video/Podcast Script":
-            return (
+            prompt = (
                 f"Based on the following research summary about '{user_query}':\n{prev_output}\n\n"
                 f"Write a detailed script suitable for an informative video or podcast segment, aiming for an approximate length of {script_length or 5} minutes (assume ~150 words per minute).\n"
                 "Structure the script clearly:\n"
@@ -159,38 +163,53 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
                 "Provide the final output as the complete script in Markdown format."
             )
         # Default to Blog Post prompt if content_type is "Blog Post" or unrecognized
-        return base_prompts['Writer']
+        else:
+            prompt = base_prompts['Writer']
+        return prompt + language_instruction # Add language instruction to writer prompt
 
     # --- Modify Reviewer prompt based on content_type ---
     if agent_name == 'Reviewer':
+        prompt = "" # Initialize prompt variable
         if content_type == "Social Media Posts":
-            return (
+            prompt = (
                 f"Review the following social media posts for clarity, engagement, tone, and hashtag relevance. "
                 f"Provide brief feedback or suggestions if needed. If they look good, simply state that. "
                 f"Do NOT start your response with 'Final Review:'. Here are the posts:\n{prev_output}"
             )
         elif content_type == "Video/Podcast Script":
-             return (
+             prompt = ( # Assign to prompt
                 f"Review the following script for clarity, conversational flow, logical structure, and accuracy based on the original topic '{user_query}'. "
-                f"Check if speaker/visual cues are used appropriately and consistently. Check if the pacing feels right for the target length. Provide constructive feedback on script elements. "
+                f"Check if speaker/visual cues are used appropriately and consistently. Check if the pacing feels right for the target length. Provide constructive feedback on script elements, focusing on the {language} language if specified. "
                 f"Do NOT start your response with 'Final Review:'. Here is the script:\n{prev_output}"
              )
         # Default to Blog Post review prompt
-        return base_prompts['Reviewer']
+        else:
+            prompt = base_prompts['Reviewer']
+        return prompt # Reviewer doesn't generate main content, so language instruction might not be needed here, but feedback should consider it.
 
     # Add similar logic here for 'Editor' if its task needs to change significantly for scripts
 
     # --- Modify Editor prompt based on content_type ---
     if agent_name == 'Editor':
+        prompt = ""
         if content_type == "Video/Podcast Script":
-            return (
+            prompt = (
                 f"Edit the following script for grammar, style, clarity, and conciseness, focusing on spoken language. **Significantly enhance engagement:** Inject more vivid descriptions, strengthen narrative elements, improve pacing, and ensure the tone is consistently captivating. "
                 f"Ensure consistent formatting for scene headings, character names, dialogue, and cues. Smooth out awkward phrasing. Check for flow and pacing. "
                 f"Provide the final output as the polished script in Markdown format: {prev_output}"
             )
         # Default to Blog Post editor prompt
-        return base_prompts['Editor']
-    return base_prompts.get(agent_name, f"Process the following input: {prev_output}") # Provide a generic fallback
+        else: # Added else block
+             prompt = base_prompts['Editor']
+        return prompt + language_instruction # Add language instruction to editor prompt
+
+    # --- Add language instruction for other relevant agents ---
+    # SEO might need language context, Fact Checker might too. For now, focus on Writer/Editor.
+    # if agent_name in ['SEO Specialist', 'Fact Checker']:
+    #     return base_prompts.get(agent_name, f"Process the following input: {prev_output}") + language_instruction
+
+    # Return base prompt for other agents or fallback
+    return base_prompts.get(agent_name, f"Process the following input: {prev_output}")
 
 def extract_subtopics_from_outline(outline):
     # Try to extract subtopics from the planner's outline (numbered, bulleted, or indented lines)
@@ -349,7 +368,7 @@ def clean_code_blocks(text):
     return cleaned.strip()
 
 # Define the workflow pipeline using CrewAI's Task and Crew
-def run_pipeline(user_query, content_type="Blog Post", script_length=None, callback=None): # Added content_type & script_length
+def run_pipeline(user_query, content_type="Blog Post", script_length=None, language="English", callback=None): # Added language
     if callback:
         callback(f"Starting pipeline for query: {user_query}")
     agents = build_agents()
@@ -375,7 +394,7 @@ def run_pipeline(user_query, content_type="Blog Post", script_length=None, callb
 
     for agent_key in agent_sequence:
         agent = agents[agent_key]
-        prompt = get_prompt(agent.name, input_data, user_query, content_type=content_type, script_length=script_length) # Pass content_type & script_length
+        prompt = get_prompt(agent.name, input_data, user_query, content_type=content_type, script_length=script_length, language=language) # Pass language
         if callback: # Check if callback exists before calling
             callback(f"[DEBUG] Prompt for {agent.name} (start): {prompt[:200]}...") # Log start of prompt
         task = Task(
@@ -419,7 +438,7 @@ if __name__ == "__main__":
     user_query = "Write a detailed report on the impact of AI in human life."
     print(f"\nRunning multi-agent pipeline via main script for query: {user_query}\n")
     # Pass print function as a simple callback when running directly
-    final_content, fact_check_report = run_pipeline(user_query, content_type="Blog Post", callback=print) # Specify content type for direct run
+    final_content, fact_check_report = run_pipeline(user_query, content_type="Blog Post", language="English", callback=print) # Specify language
     print("\n=== FINAL OUTPUT ===\n")
     print("Type of final_content:", type(final_content))
     print("repr(final_content) (first 200 chars):", repr(str(final_content)[:200]))
@@ -447,5 +466,4 @@ if __name__ == "__main__":
     if fact_check_report and isinstance(fact_check_report, str):
         with open("fact_check_report.md", "w", encoding="utf-8") as f:
             f.write(fact_check_report)
-        print("\nFact-check report saved to fact_check_report.md.\n") 
-        
+        print("\nFact-check report saved to fact_check_report.md.\n")
