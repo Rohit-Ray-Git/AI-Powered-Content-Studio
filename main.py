@@ -5,6 +5,7 @@ from crewai_tools import SerperDevTool
 from crewai import Task, Crew, LLM
 import time
 import re
+import markdown
 
 from agents.planner_agent import PlannerAgent
 from agents.researcher_agent import ResearcherAgent
@@ -61,7 +62,7 @@ def build_agents():
             "Responsible for researching topics and gathering information. For each subtopic, do a maximum of 1 web search and summarize your findings in 2-3 concise bullet points."
         )
     )
-    researcher.crew_agent.max_iter = 5
+    researcher.crew_agent.max_iter = 10
     researcher.crew_agent.max_execution_time = 60
     writer = WriterAgent(llm=llm, tools=tools, description=add_search_query_instruction("Responsible for writing content based on research."))
     writer.crew_agent.max_iter = 10
@@ -101,9 +102,24 @@ def get_prompt(agent_name, prev_output, user_query, subtopic=None):
     prompts = {
         'Planner': f"Plan the structure and main points for a blog post about: '{user_query}'. Use the web search tool if needed. When done, provide a final answer as a detailed outline. Set the input parameter as : search_query.",
         'Researcher': f"Research the latest advancements, statistics, and trends for: '{user_query}'. Use the web search tool. Use the following outline as a guide: {prev_output}. When done, provide a final answer as a research summary. Set the input parameter as : search_query.",
-        'Writer': f"Write a comprehensive blog post based on this research and outline: {prev_output}. Use the web search tool if needed. When done, provide a final answer as the full blog post. Set the input parameter as : search_query.",
+        'Writer': (
+            "Write a comprehensive, engaging, and descriptive blog post based on this research and outline: {prev_output}. "
+            "For each section, expand on the points with context, examples, and smooth transitions. "
+            "Write in a conversational, informative tone suitable for Medium or professional blogs. "
+            "Begin with a compelling introduction and end with a strong conclusion. "
+            "Avoid bullet points except for short lists. Use paragraphs and storytelling. "
+            "Here is an example of the desired style:\n\n"
+            "Example:\n"
+            "India's renewable energy journey is nothing short of remarkable. In 2024, the country achieved record-breaking growth, with solar panels gleaming atop rooftops from Mumbai to Chennai. This surge isn't just about numbers—it's about a nation embracing a cleaner, brighter future.\n\n"
+            "Set the input parameter as : search_query."
+        ),
         'Reviewer': f"Review the following blog post for factual accuracy, clarity, and coherence. Use the web search tool only if you need to verify a specific claim. After you have verified one or two claims, immediately write a review summary and end your response. Your output should be a single, concise review summary starting with 'Final Review:'. Do not output any more actions or thoughts after your summary. Here is the blog post: {prev_output} Set the input parameter as : search_query.",
-        'Editor': f"Edit the following blog post for grammar, style, and readability. Use the web search tool if needed. Make it engaging and professional. Provide a final answer as the edited blog post: {prev_output} Set the input parameter as : search_query.",
+        'Editor': (
+            "Edit the following blog post for grammar, style, and readability. Make it more engaging and professional. "
+            "Elaborate on each section, add transitions, and ensure the post reads like a story, not a list. "
+            "If any section is too brief, expand it with examples, context, or narrative. "
+            "Use paragraphs and storytelling. Provide a final answer as the edited blog post: {prev_output} Set the input parameter as : search_query."
+        ),
         'SEO Specialist': f"Optimize the following blog post for SEO. Use the web search tool if needed. Suggest keywords, meta description, and improvements. Provide a final answer as an SEO-optimized version: {prev_output} Set the input parameter as : search_query.",
         'Fact Checker': f"Fact-check the following blog post. Use the web search tool if needed. Highlight any inaccuracies or unsupported claims. Provide a final answer as a fact-check report: {prev_output} Set the input parameter as : search_query."
     }
@@ -188,8 +204,15 @@ def aggregate_research_results(results):
     summary = "\n\n".join([f"**{subtopic}:**\n{output}" for subtopic, output in results.items()])
     return summary
 
+def clean_code_blocks(text):
+    # Remove all code block markers (``` and ```html) from the start and end
+    cleaned = re.sub(r'^```(?:html)?\s*', '', text.strip(), flags=re.IGNORECASE)
+    cleaned = re.sub(r'\s*```$', '', cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
 # Define the workflow pipeline using CrewAI's Task and Crew
 def run_pipeline(user_query):
+    print(f"[DEBUG] User query at pipeline start: {user_query}")
     agents = build_agents()
     subtopics = plan_task(user_query, agents['planner'])
     research_results = run_research_subtasks(user_query, subtopics, agents['researcher'])
@@ -202,6 +225,7 @@ def run_pipeline(user_query):
         agent = agents[agent_key]
         print(f"\n--- {agent.name} is processing... ---")
         prompt = get_prompt(agent.name, input_data, user_query)
+        print(f"[DEBUG] Prompt for {agent.name}: {prompt[:200]}")
         task = Task(
             description=prompt,
             agent=agent.crew_agent,
@@ -209,7 +233,11 @@ def run_pipeline(user_query):
         )
         crew = Crew(agents=[agent.crew_agent], tasks=[task])
         result = crew.kickoff()
-        print(f"\n{agent.name} output:\n{result}\n")
+        print(f"\n[DEBUG] {agent.name} output (first 500 chars):\n{repr(str(result)[:500])}\n")
+        # Check for placeholder output
+        if isinstance(result, str) and ("I am ready to edit the blog post once it is provided." in result or len(result.strip()) == 0):
+            print(f"\n[ERROR] {agent.name} did not receive valid input. Pipeline stopped.\n")
+            return None, None
         if agent_key == 'seo':
             blog_post = result  # Save the SEO-optimized blog post
         if agent_key == 'fact_checker':
@@ -221,10 +249,6 @@ def run_pipeline(user_query):
             print(f"\nERROR: {agent.name} failed to complete its task. Pipeline stopped.")
             return None, None
     return blog_post, fact_check_report
-
-def clean_output(output):
-    # Remove leading/trailing code block markers (``` or ```html)
-    return re.sub(r'^```(?:html)?\s*|\s*```$', '', output.strip(), flags=re.IGNORECASE)
 
 def extract_body_content(html):
     match = re.search(r"<body[^>]*>(.*?)</body>", html, re.DOTALL | re.IGNORECASE)
@@ -238,15 +262,15 @@ if __name__ == "__main__":
     blog_post, fact_check_report = run_pipeline(user_query)
     print("\n=== FINAL OUTPUT ===\n")
     print(blog_post)
-    if blog_post and isinstance(blog_post, str) and len(blog_post.strip()) > 0:
-        cleaned = clean_output(blog_post)
-        # Write the full HTML (including <head>, <title>, etc.)
-        with open("blog.html", "w", encoding="utf-8") as f:
-            f.write(cleaned)
-        print("\nBlog article saved to blog.html with full HTML structure.\n")
-    else:
-        print("\nNo valid blog post was produced. blog.html was not written.\n")
+    print("Type of blog_post:", type(blog_post))
+    print("repr(blog_post) (first 200 chars):", repr(str(blog_post)[:200]))
+    # Clean code block markers before saving
+    cleaned_blog_post = clean_code_blocks(str(blog_post))
+    with open("blog.html", "w", encoding="utf-8") as f:
+        f.write(cleaned_blog_post)
+    print("\nBlog article saved to blog.html as HTML (code blocks removed).\n")
     if fact_check_report and isinstance(fact_check_report, str):
         with open("fact_check_report.md", "w", encoding="utf-8") as f:
             f.write(fact_check_report)
         print("\nFact-check report saved to fact_check_report.md.\n") 
+        
