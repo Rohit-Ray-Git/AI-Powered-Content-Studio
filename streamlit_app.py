@@ -100,6 +100,30 @@ user_query = st.text_area(
     key='user_query_input'
 )
 
+# --- Content Type Selection ---
+content_type_options = ["Blog Post", "Social Media Posts", "Video/Podcast Script"]
+if 'content_type' not in st.session_state:
+    st.session_state.content_type = content_type_options[0] # Default to Blog Post
+
+st.session_state.content_type = st.radio(
+    "Select the type of content to generate:",
+    options=content_type_options,
+    index=content_type_options.index(st.session_state.content_type), # Keep selection sticky
+    horizontal=True,
+)
+
+# --- Conditional Input for Script Length ---
+if st.session_state.content_type == "Video/Podcast Script":
+    if 'script_length_minutes' not in st.session_state:
+        st.session_state.script_length_minutes = 5 # Default length
+    st.session_state.script_length_minutes = st.number_input(
+        "Approximate Script Length (minutes):",
+        min_value=1,
+        max_value=60,
+        value=st.session_state.script_length_minutes,
+        step=1
+    )
+
 # Initialize session state for blog content if it doesn't exist
 if 'blog_post_content' not in st.session_state:
     st.session_state.blog_post_content = None
@@ -120,7 +144,14 @@ if run_button:
         with st.spinner("🤖 The AI agents are working... This may take several minutes..."):
             try:
                 query_to_run = st.session_state.user_query_input
-                blog_post_content, fact_check_report = run_pipeline(query_to_run, callback=None)
+                selected_content_type = st.session_state.content_type # Get selected type
+                # Pass script length if relevant
+                script_length = None
+                if selected_content_type == "Video/Podcast Script":
+                    script_length = st.session_state.script_length_minutes
+
+                blog_post_content, fact_check_report = run_pipeline(
+                    query_to_run, content_type=selected_content_type, script_length=script_length, callback=None) # Pass content_type and script_length
 
                 # Store results in session state
                 st.session_state.blog_post_content = blog_post_content

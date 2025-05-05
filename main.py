@@ -96,21 +96,21 @@ def build_agents():
     }
 
 # Role-specific prompt templates (explicitly instruct to use the search tool and provide a final answer)
-def get_prompt(agent_name, prev_output, user_query, subtopic=None):
+def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", script_length=None, subtopic=None): # Added content_type & script_length
     if agent_name == 'Researcher' and subtopic:
         return f"Research the following subtopic thoroughly for the main topic: '{user_query}'. Subtopic: {subtopic}. Use the web search tool to gather key facts, statistics, examples, and recent developments related to this subtopic. Provide a detailed summary paragraph (at least 10-15 sentences) covering the most important findings. Set the input parameter as : search_query."
-    prompts = {
+    base_prompts = {
         'Planner': f"Plan the structure and main points for a blog post about: '{user_query}'. Use the web search tool if needed. When done, provide a final answer as a detailed outline.",
         'Researcher': f"Research the latest advancements, statistics, and trends for: '{user_query}'. Use the web search tool. Use the following outline as a guide: {prev_output}. When done, provide a final answer as a research summary.",
         'Writer': (
             f"Write a comprehensive, engaging, and descriptive blog post based on this research and outline: {prev_output}. "
             "For each section corresponding to a research subtopic, expand significantly on the provided research findings. Ensure each section has detailed context, multiple relevant examples, insightful analysis, and smooth transitions. Do not just list the research; elaborate on it thoroughly. "
+            "**Focus on making the content highly engaging:** Use storytelling techniques, vivid descriptions, relatable analogies, and rhetorical questions to draw the reader in and maintain their interest throughout. Ensure a strong narrative flow. "
             "Where appropriate, identify key terms, statistics, or concepts and use the search tool to find relevant, authoritative URLs. Embed these as Markdown links (e.g., `link text`) directly within the text to support your points and provide further reading. Aim for 3-5 relevant links throughout the article. "
             "Aim for a substantial article, ideally over 2000 words. Ensure the content is rich and provides real value to the reader. "
             "Write in a conversational, informative tone suitable for Medium or professional blogs. "
             "Begin with a compelling introduction and end with a strong conclusion. "
             "Avoid bullet points except for short lists. Use paragraphs and storytelling. "
-            "Make it captivating and thorough. "
             "Provide the final output as a complete blog post in Markdown format. "
             "Here is an example of the desired style:\n\n"
             "Example:\n"
@@ -118,16 +118,79 @@ def get_prompt(agent_name, prev_output, user_query, subtopic=None):
         ),
         'Reviewer': f"Review the following blog post for factual accuracy, clarity, and coherence. Use the web search tool only if you need to verify a specific claim. After you have verified one or two claims, immediately write a review summary and end your response. Your output should be a single, concise review summary starting with 'Final Review:'. Do not output any more actions or thoughts after your summary. Here is the blog post: {prev_output}",
         'Editor': (
-            "Edit the following blog post for grammar, style, and readability. Make it more engaging and professional. "
+            "Edit the following blog post for grammar, style, and readability. **Crucially, enhance engagement:** Inject more vivid language, strengthen storytelling elements, improve flow, and ensure the tone is consistently captivating and professional. "
             "Review each section carefully. Elaborate on each section, add transitions, and ensure the post reads like a story, not just a list of facts. Pay close attention to the depth of each individual section based on the original research topics. "
             "Review existing links for relevance and quality. If appropriate, add 1-2 more high-quality, relevant Markdown links (`link text`) using the search tool to find authoritative sources for key claims or concepts that lack citation. Ensure links are integrated naturally. "
             "Significantly expand sections that seem brief or underdeveloped by adding more examples, context, narrative depth, or further explanation. Ensure the final post is comprehensive and feels complete (aiming for 2000+ words if the input is shorter). "
+            "Ensure the final piece holds the reader's attention from start to finish. "
             f"Use paragraphs and storytelling effectively. Provide a final answer as the polished and expanded blog post in Markdown format: {prev_output}"
         ),
         'SEO Specialist': f"Take the following blog post (in Markdown format) and optimize it for SEO. Research relevant keywords using the search tool if necessary. Integrate keywords naturally, improve readability for search engines, and craft an optimized meta description (include it at the very beginning, like: META_DESCRIPTION: [Your description here]). Preserve existing Markdown links. Do NOT explain your process or plan. Your final output must be ONLY the complete, SEO-optimized blog post text in Markdown format, starting with the meta description line. Here is the blog post: {prev_output}",
         'Fact Checker': f"Fact-check the following blog post. Use the web search tool if needed. Highlight any inaccuracies or unsupported claims. Provide a final answer as a fact-check report: {prev_output}"
     }
-    return prompts.get(agent_name, f"Process the following input: {prev_output}") # Provide a generic fallback
+
+    # --- Modify prompts based on content_type ---
+    if agent_name == 'Writer':
+        if content_type == "Social Media Posts":
+            return (
+                f"Based on the following research summary about '{user_query}':\n{prev_output}\n\n"
+                "Generate 3-5 distinct social media posts suitable for platforms like Twitter and LinkedIn.\n"
+                "Each post should be:\n"
+                "- **Informative & Descriptive:** Clearly explain a key insight, statistic, or finding from the research. Go beyond just stating the fact; add brief context or implication.\n"
+                "- **Engaging & Attractive:** Use strong opening hooks, interesting questions, or compelling calls to action. Incorporate relevant emojis strategically to add visual appeal. Maintain a professional yet approachable and exciting tone.\n"
+                "- **Concise:** Keep posts suitable for platform character limits (especially Twitter).\n"
+                "- **Include relevant hashtags:** Use a mix of broad and specific hashtags.\n"
+                "Format the output clearly, perhaps numbering each post or using separators like '---'.\n"
+                "Provide the final output as the collection of social media posts in Markdown format."
+            )
+        elif content_type == "Video/Podcast Script":
+            return (
+                f"Based on the following research summary about '{user_query}':\n{prev_output}\n\n"
+                f"Write a detailed script suitable for an informative video or podcast segment, aiming for an approximate length of {script_length or 5} minutes (assume ~150 words per minute).\n"
+                "Structure the script clearly:\n"
+                "- Use standard script formatting (e.g., SCENE HEADING, NARRATOR/CHARACTER name in caps, Dialogue below name).\n"
+                "- Break down content into logical scenes or sections (e.g., INT. STUDIO - DAY, SECTION 1: THE BASICS).\n"
+                "- **Write dialogue/narration that is highly engaging:** Use storytelling, vivid language, rhetorical questions, and a conversational tone suitable for spoken delivery. Build interest and maintain listener attention.\n"
+                "- Include clear action lines or descriptions for visuals where appropriate (e.g., [VISUAL: Graph showing market growth], [SOUND CUE: Upbeat intro music]).\n"
+                "- Add speaker cues for pacing and emphasis (e.g., [PAUSE], [EMPHASIZE THIS POINT]).\n"
+                "- **Focus on pacing:** Vary sentence structure and use pauses effectively to keep the listener engaged.\n"
+                "- Ensure the content flows logically, covers the key research points effectively, and fits the target length.\n"
+                "- Start with an engaging introduction and end with a clear conclusion or call to action.\n"
+                "Provide the final output as the complete script in Markdown format."
+            )
+        # Default to Blog Post prompt if content_type is "Blog Post" or unrecognized
+        return base_prompts['Writer']
+
+    # --- Modify Reviewer prompt based on content_type ---
+    if agent_name == 'Reviewer':
+        if content_type == "Social Media Posts":
+            return (
+                f"Review the following social media posts for clarity, engagement, tone, and hashtag relevance. "
+                f"Provide brief feedback or suggestions if needed. If they look good, simply state that. "
+                f"Do NOT start your response with 'Final Review:'. Here are the posts:\n{prev_output}"
+            )
+        elif content_type == "Video/Podcast Script":
+             return (
+                f"Review the following script for clarity, conversational flow, logical structure, and accuracy based on the original topic '{user_query}'. "
+                f"Check if speaker/visual cues are used appropriately and consistently. Check if the pacing feels right for the target length. Provide constructive feedback on script elements. "
+                f"Do NOT start your response with 'Final Review:'. Here is the script:\n{prev_output}"
+             )
+        # Default to Blog Post review prompt
+        return base_prompts['Reviewer']
+
+    # Add similar logic here for 'Editor' if its task needs to change significantly for scripts
+
+    # --- Modify Editor prompt based on content_type ---
+    if agent_name == 'Editor':
+        if content_type == "Video/Podcast Script":
+            return (
+                f"Edit the following script for grammar, style, clarity, and conciseness, focusing on spoken language. **Significantly enhance engagement:** Inject more vivid descriptions, strengthen narrative elements, improve pacing, and ensure the tone is consistently captivating. "
+                f"Ensure consistent formatting for scene headings, character names, dialogue, and cues. Smooth out awkward phrasing. Check for flow and pacing. "
+                f"Provide the final output as the polished script in Markdown format: {prev_output}"
+            )
+        # Default to Blog Post editor prompt
+        return base_prompts['Editor']
+    return base_prompts.get(agent_name, f"Process the following input: {prev_output}") # Provide a generic fallback
 
 def extract_subtopics_from_outline(outline):
     # Try to extract subtopics from the planner's outline (numbered, bulleted, or indented lines)
@@ -242,23 +305,30 @@ def get_trending_topics(search_tool, num_topics=6, callback=None):
                 text_content = str(trends_result)
         elif isinstance(trends_result, str):
             text_content = trends_result
+        else: # Handle other unexpected types
+            text_content = str(trends_result)
         # --- End handling dictionary output ---
 
         # --- Improved Parsing Logic ---
-        # Split by newline, semicolon, and potentially bullet points if used as separators mid-string
-        potential_topics = re.split(r'[\n;·]+', text_content)
+        # 1. Remove common introductory/concluding phrases (case-insensitive)
+        text_content = re.sub(r'(?:Here are|Here\'s|list of|Explore the archives|This is the \d+.. year).*?\n', '', text_content, flags=re.IGNORECASE | re.DOTALL)
+        text_content = re.sub(r'didn\'t make the cut.*', '', text_content, flags=re.IGNORECASE | re.DOTALL)
+
+        # 2. Split by common list separators (newline, semicolon, bullet, number followed by dot/parenthesis)
+        potential_topics = re.split(r'\s*(?:\n|;|\d+[.)]|\*|·|-)\s*', text_content)
         topics = []
 
         for item in potential_topics:
-            # Remove leading/trailing whitespace and list markers (numbers, bullets)
-            topic_text = re.sub(r'^\s*(?:\d+\.|\*|-)\s*', '', item).strip()
-            # Further clean trailing punctuation like periods if they are likely list terminators
-            topic_text = topic_text.rstrip('.').strip()
+            # 3. Clean each item aggressively
+            topic_text = item.strip()
+            # Remove any remaining leading list markers just in case
+            topic_text = re.sub(r'^\s*(?:\d+[.)]?|\*|·|-)\s*', '', topic_text).strip()
+            # Remove trailing punctuation/junk
+            topic_text = topic_text.rstrip('.,;:').strip()
 
             # Filter out empty strings and very short items
-            if topic_text and len(topic_text.split()) > 1: # Check word count > 1
-                 # Avoid adding duplicates
-                 if topic_text not in topics:
+            if topic_text and 1 < len(topic_text.split()) < 10: # Keep word count filter reasonable
+                 if topic_text not in topics: # Avoid adding duplicates
                     topics.append(topic_text)
 
         return topics[:num_topics] # Return the requested number of topics
@@ -279,7 +349,7 @@ def clean_code_blocks(text):
     return cleaned.strip()
 
 # Define the workflow pipeline using CrewAI's Task and Crew
-def run_pipeline(user_query, callback=None):
+def run_pipeline(user_query, content_type="Blog Post", script_length=None, callback=None): # Added content_type & script_length
     if callback:
         callback(f"Starting pipeline for query: {user_query}")
     agents = build_agents()
@@ -288,15 +358,25 @@ def run_pipeline(user_query, callback=None):
     research_results = run_research_subtasks(user_query, subtopics, agents['researcher'])
     research_summary = aggregate_research_results(research_results)
     input_data = research_summary
-    blog_post = None
+    final_content = None # Renamed from blog_post to be more generic
     fact_check_report = None
 
-    for agent_key in ['writer', 'reviewer', 'editor', 'seo', 'fact_checker']:
+    # --- Adjust agent sequence based on content_type ---
+    if content_type == "Blog Post":
+        agent_sequence = ['writer', 'reviewer', 'editor', 'seo', 'fact_checker']
+    elif content_type == "Social Media Posts":
+        # Shorter sequence for social media
+        agent_sequence = ['writer'] # Only run the writer for social media posts
+    elif content_type == "Video/Podcast Script":
+        # Sequence for scripts
+        agent_sequence = ['writer', 'reviewer', 'editor'] # Maybe skip seo/fact-check for scripts
+    else: # Default to Blog Post sequence
+        agent_sequence = ['writer', 'reviewer', 'editor', 'seo', 'fact_checker']
+
+    for agent_key in agent_sequence:
         agent = agents[agent_key]
-        if callback:
-            callback(f"\n--- Running {agent.name}... ---")
-        prompt = get_prompt(agent.name, input_data, user_query)
-        if callback:
+        prompt = get_prompt(agent.name, input_data, user_query, content_type=content_type, script_length=script_length) # Pass content_type & script_length
+        if callback: # Check if callback exists before calling
             callback(f"[DEBUG] Prompt for {agent.name} (start): {prompt[:200]}...") # Log start of prompt
         task = Task(
             description=prompt,
@@ -311,21 +391,23 @@ def run_pipeline(user_query, callback=None):
         if isinstance(result, str) and ("I am ready to edit the blog post once it is provided." in result or len(result.strip()) == 0):
             message = f"\n[ERROR] {agent.name} did not receive valid input or gave placeholder output. Pipeline stopped.\n"
             if callback: callback(message)
-            return None, None
-        if agent_key == 'seo':
-            blog_post = result  # Save the SEO-optimized blog post
+            return None, None # Return None for both outputs
+
+        # Store the final output from the *last* agent in the sequence
+        if agent_key == agent_sequence[-1] or (agent_key == 'seo' and content_type == "Blog Post"): # Special case for SEO in blog posts
+            final_content = result
+
         if agent_key == 'fact_checker':
             fact_check_report = result
-        # Only update input_data for the next agent if not the fact_checker
-        if agent_key != 'fact_checker':
-            input_data = result
+
+        input_data = result # Pass output to the next agent in the sequence
         if isinstance(result, str) and "Agent stopped due to iteration limit or time limit" in result:
             message = f"\n[ERROR] {agent.name} failed to complete its task (limit reached). Pipeline stopped."
             if callback: callback(message)
-            return None, None
+            return None, None # Return None for both outputs
     if callback:
         callback("\n--- Pipeline finished ---")
-    return blog_post, fact_check_report
+    return final_content, fact_check_report # Return the final generated content and fact check report
 
 def extract_body_content(html):
     match = re.search(r"<body[^>]*>(.*?)</body>", html, re.DOTALL | re.IGNORECASE)
@@ -337,20 +419,20 @@ if __name__ == "__main__":
     user_query = "Write a detailed report on the impact of AI in human life."
     print(f"\nRunning multi-agent pipeline via main script for query: {user_query}\n")
     # Pass print function as a simple callback when running directly
-    blog_post, fact_check_report = run_pipeline(user_query, callback=print)
+    final_content, fact_check_report = run_pipeline(user_query, content_type="Blog Post", callback=print) # Specify content type for direct run
     print("\n=== FINAL OUTPUT ===\n")
-    print("Type of blog_post:", type(blog_post))
-    print("repr(blog_post) (first 200 chars):", repr(str(blog_post)[:200]))
+    print("Type of final_content:", type(final_content))
+    print("repr(final_content) (first 200 chars):", repr(str(final_content)[:200]))
     # Clean code block markers before saving
-    cleaned_blog_post_text = clean_code_blocks(str(blog_post))
+    cleaned_content_text = clean_code_blocks(str(final_content))
 
     # Save as Markdown
     with open("blog.md", "w", encoding="utf-8") as f:
-        f.write(cleaned_blog_post_text)
+        f.write(cleaned_content_text)
     print("\nBlog article saved to blog.md as Markdown.\n")
 
     # Convert Markdown to HTML
-    html_content = markdown.markdown(cleaned_blog_post_text, extensions=['fenced_code', 'tables'])
+    html_content = markdown.markdown(cleaned_content_text, extensions=['fenced_code', 'tables'])
 
     # Create a basic HTML structure
     full_html = f"""<!DOCTYPE html>
