@@ -74,7 +74,7 @@ def build_agents():
             "Responsible for reviewing and providing feedback on content. Review the blog post for factual accuracy, clarity, and coherence. Use the web search tool only if you need to verify a specific claim. After you have verified one or two claims, immediately write a review summary and end your response. Your output should be a single, concise review summary starting with 'Final Review:'. Do not output any more actions or thoughts after your summary."
         )
     )
-    reviewer.crew_agent.max_iter = 2
+    reviewer.crew_agent.max_iter = 10
     reviewer.crew_agent.max_execution_time = 60
     editor = EditorAgent(llm=llm, tools=tools, description=add_search_query_instruction("Responsible for editing and polishing content for clarity, grammar, and style."))
     editor.crew_agent.max_iter = 10
@@ -98,7 +98,7 @@ def build_agents():
 # Role-specific prompt templates (explicitly instruct to use the search tool and provide a final answer)
 def get_prompt(agent_name, prev_output, user_query, subtopic=None):
     if agent_name == 'Researcher' and subtopic:
-        return f"Research the following subtopic thoroughly for the main topic: '{user_query}'. Subtopic: {subtopic}. Use the web search tool to gather key facts, statistics, examples, and recent developments related to this subtopic. Provide a detailed summary paragraph (at least 5-7 sentences) covering the most important findings. Set the input parameter as : search_query."
+        return f"Research the following subtopic thoroughly for the main topic: '{user_query}'. Subtopic: {subtopic}. Use the web search tool to gather key facts, statistics, examples, and recent developments related to this subtopic. Provide a detailed summary paragraph (at least 10-15 sentences) covering the most important findings. Set the input parameter as : search_query."
     prompts = {
         'Planner': f"Plan the structure and main points for a blog post about: '{user_query}'. Use the web search tool if needed. When done, provide a final answer as a detailed outline.",
         'Researcher': f"Research the latest advancements, statistics, and trends for: '{user_query}'. Use the web search tool. Use the following outline as a guide: {prev_output}. When done, provide a final answer as a research summary.",
@@ -106,7 +106,7 @@ def get_prompt(agent_name, prev_output, user_query, subtopic=None):
             f"Write a comprehensive, engaging, and descriptive blog post based on this research and outline: {prev_output}. "
             "For each section corresponding to a research subtopic, expand significantly on the provided research findings. Ensure each section has detailed context, multiple relevant examples, insightful analysis, and smooth transitions. Do not just list the research; elaborate on it thoroughly. "
             "Where appropriate, identify key terms, statistics, or concepts and use the search tool to find relevant, authoritative URLs. Embed these as Markdown links (e.g., `link text`) directly within the text to support your points and provide further reading. Aim for 3-5 relevant links throughout the article. "
-            "Aim for a substantial article, ideally over 1500 words. Ensure the content is rich and provides real value to the reader. "
+            "Aim for a substantial article, ideally over 2000 words. Ensure the content is rich and provides real value to the reader. "
             "Write in a conversational, informative tone suitable for Medium or professional blogs. "
             "Begin with a compelling introduction and end with a strong conclusion. "
             "Avoid bullet points except for short lists. Use paragraphs and storytelling. "
@@ -121,7 +121,7 @@ def get_prompt(agent_name, prev_output, user_query, subtopic=None):
             "Edit the following blog post for grammar, style, and readability. Make it more engaging and professional. "
             "Review each section carefully. Elaborate on each section, add transitions, and ensure the post reads like a story, not just a list of facts. Pay close attention to the depth of each individual section based on the original research topics. "
             "Review existing links for relevance and quality. If appropriate, add 1-2 more high-quality, relevant Markdown links (`link text`) using the search tool to find authoritative sources for key claims or concepts that lack citation. Ensure links are integrated naturally. "
-            "Significantly expand sections that seem brief or underdeveloped by adding more examples, context, narrative depth, or further explanation. Ensure the final post is comprehensive and feels complete (aiming for 1500+ words if the input is shorter). "
+            "Significantly expand sections that seem brief or underdeveloped by adding more examples, context, narrative depth, or further explanation. Ensure the final post is comprehensive and feels complete (aiming for 2000+ words if the input is shorter). "
             f"Use paragraphs and storytelling effectively. Provide a final answer as the polished and expanded blog post in Markdown format: {prev_output}"
         ),
         'SEO Specialist': f"Take the following blog post (in Markdown format) and optimize it for SEO. Research relevant keywords using the search tool if necessary. Integrate keywords naturally, improve readability for search engines, and craft an optimized meta description (include it at the very beginning, like: META_DESCRIPTION: [Your description here]). Preserve existing Markdown links. Do NOT explain your process or plan. Your final output must be ONLY the complete, SEO-optimized blog post text in Markdown format, starting with the meta description line. Here is the blog post: {prev_output}",
@@ -214,6 +214,58 @@ def run_research_subtasks(user_query, subtopics, researcher_agent, callback=None
         else:
             results[subtopic] = "Error: Rate limit exceeded after retries."
     return results
+
+def get_trending_topics(search_tool, num_topics=6, callback=None):
+    """Fetches current trending topics using the search tool."""
+    if callback:
+        callback("Fetching trending topics...")
+    try:
+        # Use a query likely to return a list or summary of trends
+        # Updated query to focus on new tech and inventions
+        search_query = f"list the top {num_topics} recent breakthroughs or new inventions in technology"
+        # Pass the query using the expected keyword argument 'search_query'
+        trends_result = search_tool.run(search_query=search_query)
+        if callback:
+            callback(f"Raw trends result: {trends_result[:200]}...") # Log raw result
+
+        # --- Handle potential dictionary output from search tool ---
+        text_content = ""
+        if isinstance(trends_result, dict):
+            # Try common keys where relevant text might be found
+            if 'answerBox' in trends_result and 'snippet' in trends_result['answerBox']:
+                text_content = trends_result['answerBox'].get('title', '') + "\n" + trends_result['answerBox'].get('snippet', '')
+            elif 'organic' in trends_result and isinstance(trends_result['organic'], list):
+                # Combine snippets from organic results
+                text_content = "\n".join([item.get('snippet', '') for item in trends_result['organic'] if 'snippet' in item])
+            else:
+                # Fallback: convert the whole dict to string if specific keys aren't found
+                text_content = str(trends_result)
+        elif isinstance(trends_result, str):
+            text_content = trends_result
+        # --- End handling dictionary output ---
+
+        # --- Improved Parsing Logic ---
+        # Split by newline, semicolon, and potentially bullet points if used as separators mid-string
+        potential_topics = re.split(r'[\n;·]+', text_content)
+        topics = []
+
+        for item in potential_topics:
+            # Remove leading/trailing whitespace and list markers (numbers, bullets)
+            topic_text = re.sub(r'^\s*(?:\d+\.|\*|-)\s*', '', item).strip()
+            # Further clean trailing punctuation like periods if they are likely list terminators
+            topic_text = topic_text.rstrip('.').strip()
+
+            # Filter out empty strings and very short items
+            if topic_text and len(topic_text.split()) > 1: # Check word count > 1
+                 # Avoid adding duplicates
+                 if topic_text not in topics:
+                    topics.append(topic_text)
+
+        return topics[:num_topics] # Return the requested number of topics
+    except Exception as e:
+        if callback: callback(f"Error fetching trending topics: {e}")
+        else: print(f"Error fetching trending topics: {e}")
+        return [] # Return empty list on error
 
 def aggregate_research_results(results):
     # Combine all subtopic results into a single research summary

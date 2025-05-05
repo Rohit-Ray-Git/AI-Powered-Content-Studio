@@ -9,22 +9,22 @@ import streamlit as st
 import os
 import sys
 import traceback
-import streamlit.components.v1 as components # Import components
+import streamlit.components.v1 as components
+import markdown # Import the markdown library
 
 # Ensure the main script's directory is in the path to find modules
 project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Import the main pipeline function AFTER setting the path
+# Import your pipeline and helper functions
 try:
-    # Assuming main.py is in the same directory as this streamlit_app.py
-    from main import run_pipeline, clean_code_blocks
+    from main import run_pipeline, clean_code_blocks, get_trending_topics, search_tool
 except ImportError as e:
     st.error(f"Error importing functions from main.py: {e}")
     st.error(f"Project Root: {project_root}")
     st.error(f"Sys Path: {sys.path}")
-    st.stop() # Stop execution if import fails
+    st.stop()
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -43,99 +43,175 @@ st.markdown("---")
 st.markdown("""
 <style>
 .stMarkdown {
-    line-height: 1.6; /* Improve text readability */
+    line-height: 1.6;
 }
 .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
-    margin-top: 1.5em; /* Add space above headers */
+    margin-top: 1.5em;
     margin-bottom: 0.5em;
 }
 .stMarkdown p {
-    margin-bottom: 1em; /* Add space between paragraphs */
+    margin-bottom: 1em;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Input Section ---
-st.header("1. Enter Your Topic")
+st.header("Choose or Enter Your Topic")
+
+# --- Trending Topics Section ---
+@st.cache_data(ttl=3600)
+def fetch_trends():
+    try:
+        topics = get_trending_topics(search_tool, num_topics=6)
+        return topics
+    except Exception as e:
+        print(f"Error in fetch_trends: {e}")
+        return []
+
+trending_topics = fetch_trends()
+
+# --- DEBUG line removed ---
+# st.write("DEBUG: Fetched trending_topics list:", trending_topics)
+
+if trending_topics:
+    st.subheader("🔥 Trending Topics (Click to select)")
+
+    if 'user_query_input' not in st.session_state:
+        st.session_state.user_query_input = ""
+
+    num_columns = 3
+    rows = [trending_topics[i:i + num_columns] for i in range(0, len(trending_topics), num_columns)]
+
+    for row in rows:
+        cols = st.columns(num_columns)
+        for idx, topic in enumerate(row):
+            with cols[idx]:
+                with st.container(border=True):
+                    if st.button(topic, key=f"topic_{topic}", use_container_width=True):
+                        st.session_state.user_query_input = topic
+                        st.rerun()
+                    st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+
+# --- Topic Input ---
 user_query = st.text_area(
     "Describe the topic you want the AI to write about:",
     height=100,
-    placeholder="e.g., The future of renewable energy in India, or Explain the basics of quantum computing"
+    placeholder="e.g., The future of renewable energy in India, or Explain the basics of quantum computing",
+    key='user_query_input'
 )
 
+# Initialize session state for blog content if it doesn't exist
+if 'blog_post_content' not in st.session_state:
+    st.session_state.blog_post_content = None
+if 'fact_check_report' not in st.session_state:
+    st.session_state.fact_check_report = None
+
 # --- Run Button ---
-st.markdown("<br>", unsafe_allow_html=True) # Add some space
-col_run_button, _ = st.columns([1, 3]) # Adjust column ratio as needed
+st.markdown("<br>", unsafe_allow_html=True)
+col_run_button, _ = st.columns([1, 3])
 with col_run_button:
     run_button = st.button("🚀 Generate Content", type="primary", use_container_width=True)
 
-# --- Output Section ---
-st.markdown("---")
-st.header("2. Generated Content")
 
 if run_button:
-    if not user_query:
+    if not st.session_state.get('user_query_input', ''):
         st.warning("Please enter a topic description above.")
     else:
-        # Removed progress log display elements
-
         with st.spinner("🤖 The AI agents are working... This may take several minutes..."):
             try:
-                # Define output file paths relative to the project root
-                blog_md_path = os.path.join(project_root, "blog.md")
-                blog_html_path = os.path.join(project_root, "blog.html")
-                fact_check_path = os.path.join(project_root, "fact_check_report.md")
-                # Run the pipeline
-                # Run without the UI callback
-                blog_post_content, fact_check_report = run_pipeline(user_query, callback=None)
+                query_to_run = st.session_state.user_query_input
+                blog_post_content, fact_check_report = run_pipeline(query_to_run, callback=None)
+
+                # Store results in session state
+                st.session_state.blog_post_content = blog_post_content
+                st.session_state.fact_check_report = fact_check_report
 
                 if blog_post_content:
                     st.success("✅ Content generation complete!")
-
-                    # Display the blog post preview (rendered from Markdown)
-                    st.subheader("📄 Blog Post Preview (Rendered from Markdown)")
-                    # clean_code_blocks might be useful if the AI includes ``` sometimes
-                    # --- Revert to using components.html as the content is HTML ---
-                    html_content_str = str(blog_post_content)
-
-                    # Inject some basic CSS into the HTML string for better preview styling
-                    # (This assumes the HTML has a <head> tag)
-                    basic_styles = """
-<style> /* Styles for dark background */
-  body { font-family: sans-serif; color: #e0e0e0; line-height: 1.6; padding: 15px; background-color: inherit; } /* Light gray text, inherit background */
-  h1, h2, h3, h4, h5, h6 { color: #ffffff; margin-top: 1.5em; margin-bottom: 0.5em; } /* White headings */
-  a { color: #007bff; text-decoration: none; }
-  a:hover { color: #0056b3; text-decoration: underline; }
-  p { margin-bottom: 1em; }
-  ul, ol { margin-bottom: 1em; padding-left: 2em; }
-  li { margin-bottom: 0.5em; }
-</style>
-"""
-                    # Use st.markdown to render the Markdown content correctly
-                    st.markdown(clean_code_blocks(str(blog_post_content)), unsafe_allow_html=True) # Allow HTML in Markdown if needed for links
-
-                    # Provide download buttons
-                    st.subheader("💾 Download Files")
-                    col1, col2, col3 = st.columns(3)
-                    # Read files *after* pipeline confirms they should exist
-                    if os.path.exists(blog_md_path):
-                        with open(blog_md_path, "r", encoding="utf-8") as f:
-                            col1.download_button("Download Markdown (.md)", f.read(), "blog.md", "text/markdown", use_container_width=True)
-                    if os.path.exists(blog_html_path):
-                        with open(blog_html_path, "r", encoding="utf-8") as f:
-                            col2.download_button("Download HTML (.html)", f.read(), "blog.html", "text/html", use_container_width=True)
-                    if fact_check_report and isinstance(fact_check_report, str) and os.path.exists(fact_check_path):
-                        st.markdown("---")
-                        st.subheader("🧐 Fact-Check Report")
-                        st.markdown(fact_check_report)
-                        with open(fact_check_path, "r", encoding="utf-8") as f:
-                            col3.download_button("Download Fact-Check Report (.md)", f.read(), "fact_check_report.md", "text/markdown", use_container_width=True)
-
                 else:
                     st.error("😔 Content generation failed or returned empty. Please check the console logs for errors.")
-
+                    st.session_state.blog_post_content = None # Clear on failure
+                    st.session_state.fact_check_report = None
             except Exception as e:
-                st.error(f"An error occurred during the pipeline execution:")
-                st.error(traceback.format_exc()) # Show detailed error in the app
-else:
-    st.info("Enter a topic and click 'Generate Content' to start.")
+                st.error("An error occurred during the pipeline execution:")
+                st.error(traceback.format_exc())
+                st.session_state.blog_post_content = None # Clear on error
+                st.session_state.fact_check_report = None
+
+# --- Display Area (Moved outside the 'if run_button' block) ---
+st.markdown("---")
+st.header("Generated Content")
+
+# Display content if it exists in session state
+if st.session_state.get('blog_post_content'):
+    # Display the blog post preview (rendered from Markdown)
+    st.subheader("📄 Blog Post Preview (Rendered from Markdown)")
+    st.markdown(clean_code_blocks(str(st.session_state.blog_post_content)), unsafe_allow_html=True)
+
+    # Provide download buttons
+    st.subheader("💾 Download Files")
+    col1, col2, col3 = st.columns(3)
+
+    # --- Prepare Markdown Download Data ---
+    try:
+        cleaned_md_content = clean_code_blocks(str(st.session_state.blog_post_content))
+        col1.download_button(
+            label="Download Markdown (.md)",
+            data=cleaned_md_content,
+            file_name="blog_post.md",
+            mime="text/markdown",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"Error preparing Markdown download data: {e}")
+
+    # --- Prepare HTML Download Data ---
+    try:
+        # Convert Markdown from session state to HTML
+        html_content = markdown.markdown(cleaned_md_content)
+        # Basic HTML structure
+        full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog Post</title>
+    <style> body {{ font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: auto; }} </style>
+</head>
+<body>
+{html_content}
+</body>
+</html>"""
+        col2.download_button(
+            label="Download HTML (.html)",
+            data=full_html,
+            file_name="blog_post.html",
+            mime="text/html",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"Error preparing HTML download data: {e}")
+
+    # --- Prepare Fact Check Report Download Data ---
+    if st.session_state.get('fact_check_report'):
+        try:
+            st.markdown("---")
+            st.subheader("🧐 Fact-Check Report")
+            st.markdown(str(st.session_state.fact_check_report)) # Display report
+            fact_check_data = str(st.session_state.fact_check_report)
+            col3.download_button(
+                label="Download Fact-Check Report (.md)",
+                data=fact_check_data,
+                file_name="fact_check_report.md",
+                mime="text/markdown",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"Error preparing Fact Check download data: {e}")
+
+elif run_button and not st.session_state.get('user_query_input', ''):
+    # This case is handled inside the main 'if run_button' block now
+    pass # No need for separate handling here
+elif not run_button and not st.session_state.get('blog_post_content'):
+    # Show initial message only if not run and no content exists
+    st.info("Enter a topic or select a trending one, then click 'Generate Content' to start.")
