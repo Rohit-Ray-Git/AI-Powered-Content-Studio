@@ -5,6 +5,7 @@ import traceback
 import streamlit.components.v1 as components
 import streamlit as st # Ensure streamlit is imported as st
 import markdown # Import the markdown library
+from ui_feedback import show_error_message, show_success_message, show_warning_message, show_info_message
 
 # Ensure the main script's directory is in the path to find modules
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -179,36 +180,36 @@ with main_col: # Place button in the center column
 
 if run_button:
     if not st.session_state.get('user_query_input', ''):
-        st.warning("Please enter a topic description above.")
+        show_warning_message("Please enter a topic description above.")
     else:
-        with main_col, st.spinner("🤖 The AI agents are working... This may take several minutes..."): # Show spinner in center column
+        with main_col, st.spinner("🤖 The AI agents are working... This may take several minutes..."):
             try:
                 query_to_run = st.session_state.user_query_input
-                selected_content_type = st.session_state.content_type # Get selected type
-                # Pass script length if relevant
+                selected_content_type = st.session_state.content_type
                 script_length = None
                 if selected_content_type == "Video/Podcast Script":
-                    script_length = st.session_state.get('script_length_minutes', 5) # Use .get for safety
-                selected_language = st.session_state.selected_language # Get selected language
-                selected_tone = st.session_state.selected_tone # Get selected tone
+                    script_length = st.session_state.get('script_length_minutes', 5)
+                selected_language = st.session_state.selected_language
+                selected_tone = st.session_state.selected_tone
 
                 blog_post_content, fact_check_report = run_pipeline(
-                    query_to_run, content_type=selected_content_type, script_length=script_length, language=selected_language, tone=selected_tone, callback=None) # Pass tone
+                    query_to_run, content_type=selected_content_type, script_length=script_length, language=selected_language, tone=selected_tone, callback=None)
 
-                # Store results in session state
                 st.session_state.blog_post_content = blog_post_content
                 st.session_state.fact_check_report = fact_check_report
 
                 if blog_post_content:
-                    st.success("✅ Content generation complete!")
+                    show_success_message("✅ Content generation complete!")
                 else:
-                    st.error("😔 Content generation failed or returned empty. Please check the console logs for errors.")
-                    st.session_state.blog_post_content = None # Clear on failure
+                    show_error_message(
+                        "😔 Content generation failed or returned empty. Please check your input and try again.",
+                        debug_info="If you see this message repeatedly, please check your topic, content type, and other settings. If the problem persists, contact support or check the logs for more details."
+                    )
+                    st.session_state.blog_post_content = None
                     st.session_state.fact_check_report = None
             except Exception as e:
-                st.error("An error occurred during the pipeline execution:")
-                st.error(traceback.format_exc())
-                st.session_state.blog_post_content = None # Clear on error
+                show_error_message("An error occurred during the pipeline execution:", debug_info=traceback.format_exc())
+                st.session_state.blog_post_content = None
                 st.session_state.fact_check_report = None
 
 # --- Display Area (Remains full width) ---

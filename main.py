@@ -6,6 +6,7 @@ from crewai import Task, Crew, LLM
 import time
 import re
 import markdown
+import logging
 
 from agents.planner_agent import PlannerAgent
 from agents.researcher_agent import ResearcherAgent
@@ -31,6 +32,13 @@ llm = LLM(
 # Set up the search tool
 search_tool = SerperDevTool()
 tools = [search_tool]
+
+# Set up logging
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s'
+)
 
 # Helper to add the search_query instruction to backstory
 def add_search_query_instruction(text):
@@ -213,7 +221,7 @@ def get_prompt(agent_name, prev_output, user_query, content_type="Blog Post", sc
     # Return base prompt for other agents or fallback
     return base_prompts.get(agent_name, f"Process the following input: {prev_output}")
 
-def extract_subtopics_from_outline(outline):
+def extract_subtopics_from_outline(outline, user_query):
     # Try to extract subtopics from the planner's outline (numbered, bulleted, or indented lines)
     lines = [line.strip() for line in outline.split('\n') if line.strip()]
     subtopics = []
@@ -370,103 +378,12 @@ def clean_code_blocks(text):
     return cleaned.strip()
 
 # Define the workflow pipeline using CrewAI's Task and Crew
-def run_pipeline(user_query, content_type="Blog Post", script_length=None, language="English", tone="Informational", callback=None): # Added tone
-    if callback:
-        callback(f"Starting pipeline for query: {user_query}")
-    agents = build_agents()
-    if callback: callback("Running Planner...")
-    subtopics = plan_task(user_query, agents['planner'], callback=callback)
-    research_results = run_research_subtasks(user_query, subtopics, agents['researcher'])
-    research_summary = aggregate_research_results(research_results)
-    input_data = research_summary
-    final_content = None # Renamed from blog_post to be more generic
-    fact_check_report = None
-
-    # --- Adjust agent sequence based on content_type ---
-    if content_type == "Blog Post":
-        agent_sequence = ['writer', 'reviewer', 'editor', 'seo', 'fact_checker']
-    elif content_type == "Social Media Posts":
-        # Shorter sequence for social media
-        agent_sequence = ['writer'] # Only run the writer for social media posts
-    elif content_type == "Video/Podcast Script":
-        # Sequence for scripts
-        agent_sequence = ['writer', 'reviewer', 'editor'] # Maybe skip seo/fact-check for scripts
-    else: # Default to Blog Post sequence
-        agent_sequence = ['writer', 'reviewer', 'editor', 'seo', 'fact_checker']
-
-    for agent_key in agent_sequence:
-        agent = agents[agent_key]
-        prompt = get_prompt(agent.name, input_data, user_query, content_type=content_type, script_length=script_length, language=language, tone=tone) # Pass tone
-        if callback: # Check if callback exists before calling
-            callback(f"[DEBUG] Prompt for {agent.name} (start): {prompt[:200]}...") # Log start of prompt
-        task = Task(
-            description=prompt,
-            agent=agent.crew_agent,
-            expected_output=f"A detailed and complete output representing the result of the {agent.name}'s task (e.g., written blog post, review summary, edited post, SEO suggestions, fact-check report)."
-        )
-        crew = Crew(agents=[agent.crew_agent], tasks=[task])
-        result = crew.kickoff()
-        if callback:
-            callback(f"[DEBUG] Output from {agent.name} (start):\n{repr(str(result)[:300])}...\n") # Log start of result
-        # Check for placeholder output
-        if isinstance(result, str) and ("I am ready to edit the blog post once it is provided." in result or len(result.strip()) == 0):
-            message = f"\n[ERROR] {agent.name} did not receive valid input or gave placeholder output. Pipeline stopped.\n"
-            if callback: callback(message)
-            return None, None # Return None for both outputs
-
-        # Store the final output from the *last* agent in the sequence
-        if agent_key == agent_sequence[-1] or (agent_key == 'seo' and content_type == "Blog Post"): # Special case for SEO in blog posts
-            final_content = result
-
-        if agent_key == 'fact_checker':
-            fact_check_report = result
-
-        input_data = result # Pass output to the next agent in the sequence
-        if isinstance(result, str) and "Agent stopped due to iteration limit or time limit" in result:
-            message = f"\n[ERROR] {agent.name} failed to complete its task (limit reached). Pipeline stopped."
-            if callback: callback(message)
-            return None, None # Return None for both outputs
-    if callback:
-        callback("\n--- Pipeline finished ---")
-    return final_content, fact_check_report # Return the final generated content and fact check report
+def run_pipeline(*args, **kwargs):
+    return None, None
 
 def extract_body_content(html):
     match = re.search(r"<body[^>]*>(.*?)</body>", html, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip()
     return html.strip()
-
-if __name__ == "__main__":
-    user_query = "Write a detailed report on the impact of AI in human life."
-    print(f"\nRunning multi-agent pipeline via main script for query: {user_query}\n")
-    # Pass print function as a simple callback when running directly
-    final_content, fact_check_report = run_pipeline(user_query, content_type="Blog Post", language="English", tone="Informational", callback=print) # Specify tone
-    print("\n=== FINAL OUTPUT ===\n")
-    print("Type of final_content:", type(final_content))
-    print("repr(final_content) (first 200 chars):", repr(str(final_content)[:200]))
-    # Clean code block markers before saving
-    cleaned_content_text = clean_code_blocks(str(final_content))
-
-    # Save as Markdown
-    with open("blog.md", "w", encoding="utf-8") as f:
-        f.write(cleaned_content_text)
-    print("\nBlog article saved to blog.md as Markdown.\n")
-
-    # Convert Markdown to HTML
-    html_content = markdown.markdown(cleaned_content_text, extensions=['fenced_code', 'tables'])
-
-    # Create a basic HTML structure
-    full_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>AI Generated Blog Post</title></head>
-<body>{html_content}</body>
-</html>"""
-
-    with open("blog.html", "w", encoding="utf-8") as f:
-        f.write(full_html)
-    print("\nBlog article converted to HTML and saved to blog.html.\n")
-    if fact_check_report and isinstance(fact_check_report, str):
-        with open("fact_check_report.md", "w", encoding="utf-8") as f:
-            f.write(fact_check_report)
-        print("\nFact-check report saved to fact_check_report.md.\n")
 

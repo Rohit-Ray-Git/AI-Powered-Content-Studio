@@ -1,5 +1,5 @@
 """
-Workflow management for Agent Studio prototype.
+Workflow management for Agent Studio.
 """
 
 class Workflow:

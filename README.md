@@ -1,5 +1,7 @@
 # 🚀 AI-Powered Content Studio 🚀
 
+![screenshot](docs/screenshot.png) <!-- Replace with an actual screenshot or GIF of your app UI -->
+
 This project implements a multi-agent system using CrewAI and Streamlit to create a versatile content generation studio. Users can generate various types of content based on a chosen topic, leveraging AI agents for planning, research, writing, editing, SEO optimization, and fact-checking.
 
 ## ✨ Features
@@ -56,7 +58,7 @@ This project implements a multi-agent system using CrewAI and Streamlit to creat
 1.  Ensure your virtual environment is activated.
 2.  Run the Streamlit application:
     ```bash
-    streamlit run "AI-Powered Content Studio Project\streamlit_app.py"
+    streamlit run streamlit_app.py
     ```
 3.  Open the provided URL in your web browser.
 4.  Select a trending topic or enter your own.
@@ -64,6 +66,31 @@ This project implements a multi-agent system using CrewAI and Streamlit to creat
 6.  If generating a script, specify the approximate length.
 7.  Click "Generate Content" and wait for the AI agents to complete the task.
 8.  Preview the generated content and use the download buttons.
+
+## 🎬 Demo
+
+- **Blog Post Example:**
+  ![blog-demo](docs/blog_demo.png) <!-- Replace with a real screenshot or GIF -->
+- **Social Media Post Example:**
+  ![social-demo](docs/social_demo.png)
+
+## 🧪 Testing
+
+To run all tests:
+```bash
+python -m unittest discover tests
+```
+To run a specific test file:
+```bash
+python -m unittest tests/test_main.py
+```
+
+## 🐞 Troubleshooting
+
+- **API Key Errors:** Ensure your `.env` file is present and contains valid keys.
+- **Rate Limits:** If you see rate limit errors, wait a few minutes and try again.
+- **Streamlit Not Found:** Install dependencies with `pip install -r requirements.txt`.
+- **Other Issues:** Check the logs in `app.log` for more details.
 
 ## 📂 File Structure (Simplified)
 
@@ -73,3 +100,13 @@ This project implements a multi-agent system using CrewAI and Streamlit to creat
 *   `.env`: Stores API keys (you need to create this).
 *   `requirements.txt`: Lists project dependencies.
 *   `README.md`: This file.
+*   `ui_feedback.py`: Utility for user feedback in the UI.
+*   `tests/`: Unit and integration tests.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request. For major changes, please open an issue first to discuss what you would like to change.
+
+## 📄 License
+
+[MIT License](LICENSE) <!-- Or your chosen license -->
